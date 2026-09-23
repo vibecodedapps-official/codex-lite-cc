@@ -311,11 +311,11 @@ async function setup(dataDir) {
   // Claude Code permission rules write an absolute path with a leading //; Windows paths as //c/Users/...
   const abs = POSIX ? dataDir.replace(/\/+$/, '') : `/${dataDir.replace(/^([A-Za-z]):/, (_, d) => d.toLowerCase()).replaceAll('\\', '/').replace(/\/+$/, '')}`;
   // The Bash rule matches the command as the command files write it: the plugin root, then /scripts, so on Windows the
-  // slashes are mixed. Its * stands for the separator and the version directory, so no \ comes right before it.
-  const rules = [`Edit(/${abs}/**)`, `Bash(node "${dirname(dirname(dirname(process.argv[1])))}*/scripts/codex-lite.mjs" *)`];
+  // slashes are mixed. It names the version directory: a * in the path would also match a sibling directory or a .. path.
+  const rules = [`Edit(/${abs}/**)`, `Bash(node "${dirname(dirname(process.argv[1]))}/scripts/codex-lite.mjs" *)`];
   out.push('', 'Allow rules for this plugin, as JSON strings. setup adds neither; to use them, paste them into the permissions.allow ' +
     'array in your Claude Code settings:', ...rules.map((r, i) => `  ${JSON.stringify(r)}${i < rules.length - 1 ? ',' : ''}`),
-  'The * in the Bash rule stands for the plugin version, so the rule still matches after an update.');
+  'The Bash rule names the installed version\'s path, so it changes with every release.');
   return ok;
 }
 
