@@ -39,8 +39,9 @@ permission rules for the permission items. Give scratch repositories an identity
    result either way, including the error code name the refusal prints.
 6. **The footer is true, checked against the repository and not against itself.** A `do` run
    on a file that was already modified before the run shows that file in the printed tree
-   state. A `do` run that writes a file covered by `.gitignore` shows it. A `do` run that
-   commits shows two different values on the `HEAD` line. The `requested:` line matches what
+   state. A `do` run that writes a file covered by `.gitignore` shows it. A `do` run told to
+   commit shows the same value twice on the `HEAD` line, because Codex's sandbox denies writes
+   to `.git` and the commit fails. The `requested:` line matches what
    ran, and the printed resume line runs as pasted in a POSIX shell. A run that fails before
    Codex starts a thread prints no resume line.
 7. **Codex version drift.** Record `codex --version`. The test suite's fake Codex reproduces
@@ -57,15 +58,19 @@ permission rules for the permission items. Give scratch repositories an identity
 These were not run when 0.1.0 was built, because they need an interactive session.
 
 9. **Permission prompts in default mode.** With no allow rules for this plugin, run each
-   command once and record which prompts appear: the Write prompt for the request file, and
-   whether the Bash call is prompted or pre-approved by the command file's `allowed-tools`
-   rule.
-10. **The Edit allow rule silences the Write prompt.** Add the Edit allow rule `setup` prints
-    for the plugin's data directory and confirm the Write prompt no longer appears. Run once
-    with the rule and once without, and record both.
-11. **Model invocation is refused.** In a session with the plugin installed, ask Claude in
-    plain words to run `do` for you. It must not invoke the command, because every command
-    file sets `disable-model-invocation: true`.
+   command once and record which prompts appear: the Read and Write prompts for the request
+   file, and whether the Bash call is prompted or pre-approved by the command file's
+   `allowed-tools` rule.
+10. **Whether the Edit allow rule silences the Write prompt.** Add the Edit allow rule `setup`
+    prints for the plugin's data directory, run once with the rule and once without, and
+    record whether the Write prompt appears. On Claude Code 2.1.280 it still appears, because
+    the file is under `~/.claude`. If that changes, update the Permissions section of the
+    README.
+11. **Model invocation is refused.** In a fresh session with the plugin installed, ask Claude
+    in plain words to run `do` for you. It must not invoke the command, because every command
+    file sets `disable-model-invocation: true`. Then ask again in a session where a command
+    has already run: Claude may repeat the steps by hand, and its Bash call must be prompted,
+    not pre-approved. Deny it.
 12. **Deny, then recover, in one session.** Run `/codex-lite:ask` and deny the Bash prompt
     (or, if item 9 found no Bash prompt, interrupt the turn after the Write), then run
     `/codex-lite:ask` again in the same session. The second run must succeed: the command

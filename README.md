@@ -72,6 +72,8 @@ result looks wrong, run `/codex-lite:setup`.
 - A `workspace-write` run can also write to the system temporary directory. That is Codex's
   default, not a choice this plugin makes.
 - `do` has no network. It cannot install packages, fetch dependencies or call an API.
+- `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
+  fails and `HEAD` stays where it was. Commit the result yourself.
 - `ask` and `do` run on Codex's default model, because your Codex config is not read. There is
   no model flag for them; only `review` takes `--model`.
 - Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
@@ -87,6 +89,11 @@ result looks wrong, run `/codex-lite:setup`.
 - Your request reaches Codex through two model steps: Claude writes it to a file, then runs
   the script, which sends the file to Codex. Delivery is verbatim on a best-effort basis; a
   very long paste could be altered and nothing detects it.
+- `disable-model-invocation` stops Claude from invoking a command, not from repeating its
+  steps. Once a command has run in a session, Claude can write the request file and run the
+  script itself when asked in plain words. The command file's pre-approval does not apply to
+  that Bash call, so in default permission mode Claude Code asks you first. Other permission
+  modes were not tested.
 
 Three Codex behaviours this plugin works around:
 
@@ -114,13 +121,17 @@ sessions from other agents; use that.
 
 ## Permissions
 
-The first time a command runs, Claude Code asks permission to write the request file in the
-plugin's data directory. That is the one prompt to expect. Each command file lists its own
-script call in `allowed-tools`, which is expected to pre-approve it; if Claude Code prompts for
-it anyway, `setup` prints the rule to add. `/codex-lite:setup` prints the allow rules you can
-add to your settings and adds none itself. A rule that names the plugin's install path
-contains the version number and must be updated after each release; the rule for the data
-directory does not change.
+In default permission mode, expect two prompts every time `ask`, `review` or `do` runs: one to
+read the request file and one to write it. The file is in the plugin's data directory, which is
+under `~/.claude`, and Claude Code treats files there as sensitive. The Edit allow rule
+`setup` prints for the data directory does not remove the Write prompt; this was checked on
+Claude Code 2.1.280. To stop the Write prompt for the rest of a session, choose the prompt's
+option to allow Claude to edit files in its `~/.claude` folder.
+
+Each command file lists its own script call in `allowed-tools`, which pre-approves it, so the
+Bash call is not prompted. `/codex-lite:setup` prints allow rules you can add to your settings
+and adds none itself. A rule that names the plugin's install path contains the version number
+and must be updated after each release.
 
 ## Development
 
