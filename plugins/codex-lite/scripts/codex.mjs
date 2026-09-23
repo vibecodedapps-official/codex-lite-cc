@@ -3,10 +3,15 @@
 import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
 
-const turnPrefix = (mode) => ['--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', `sandbox_mode="${mode}"`];
+// Codex's Windows sandbox mode, when given, is passed on every sandboxed call: --ignore-user-config drops the user's own.
+const windowsFlag = (windowsSandbox) => (windowsSandbox === undefined ? [] : ['-c', `windows.sandbox="${windowsSandbox}"`]);
+const turnPrefix = (mode, windowsSandbox) => ['--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', `sandbox_mode="${mode}"`,
+  ...windowsFlag(windowsSandbox)];
 const FORBIDDEN = ['--color', '--ephemeral', '--sandbox', '-s', '--skip-git-repo-check', '--ignore-rules', '--full-auto',
   '--dangerously-bypass-approvals-and-sandbox'];
-const ALLOWED_OVERRIDES = ['approval_policy="never"', 'sandbox_mode="read-only"', 'sandbox_mode="workspace-write"'];
+export const WINDOWS_SANDBOXES = ['unelevated', 'elevated'];
+const ALLOWED_OVERRIDES = ['approval_policy="never"', 'sandbox_mode="read-only"', 'sandbox_mode="workspace-write"',
+  ...WINDOWS_SANDBOXES.map((m) => `windows.sandbox="${m}"`)];
 
 // Run as `node -e PROBE_SCRIPT <target>`. Exits 0 when the write lands, 42 when it is denied (macOS says EPERM,
 // Windows and Linux sandboxes say EACCES), 9 on anything else; the error code name goes to stderr.
@@ -25,15 +30,15 @@ const plain = (name, v) => {
 export function buildArgv(command, options = {}) {
   let argv;
   if (command === 'review') {
-    argv = ['exec', 'review', ...turnPrefix('read-only'),
+    argv = ['exec', 'review', ...turnPrefix('read-only', options.windowsSandbox),
       ...(options.base === undefined ? ['--uncommitted'] : ['--base', plain('--base', options.base)])];
     if (options.model !== undefined) argv.push('--model', plain('--model', options.model));
   } else if (command === 'ask' || command === 'do') {
-    argv = ['exec', ...turnPrefix(command === 'ask' ? 'read-only' : 'workspace-write'), '-'];
+    argv = ['exec', ...turnPrefix(command === 'ask' ? 'read-only' : 'workspace-write', options.windowsSandbox), '-'];
   } else if (command === 'version') argv = ['--version'];
   else if (command === 'login') argv = ['login', 'status'];
   else if (command === 'sandbox') {
-    argv = ['sandbox', '-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"', '--',
+    argv = ['sandbox', '-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"', ...windowsFlag(options.windowsSandbox), '--',
       plain('execPath', options.execPath), '-e', PROBE_SCRIPT, plain('target', options.target)];
   } else throw new Error(`unknown command ${JSON.stringify(command)}`);
   check(command, argv);
@@ -51,6 +56,7 @@ function check(command, argv) {
     return;
   }
   if (overrides.filter((c) => c.startsWith('sandbox_mode=')).length !== 1) fail('needs exactly one sandbox_mode');
+  if (overrides.filter((c) => c.startsWith('windows.sandbox=')).length > 1) fail('more than one windows.sandbox');
   if (!overrides.includes('approval_policy="never"')) fail('needs approval_policy="never"');
   if (argv[0] === 'sandbox') return;
   if (!opts.includes('--json') || !opts.includes('--ignore-user-config')) fail('needs --json and --ignore-user-config');
@@ -100,7 +106,7 @@ export function decideProbe({ reachability, positive, negative }) {
   }
   if (positive.exit !== 0 || !positive.created) {
     return { pass: false, reason: `positive control failed: a sandboxed write inside the working directory gave ${seen(positive)}; ` +
-      'expected exit 0 with the file created, so this host cannot run a sandboxed write' };
+      'expected exit 0 with the file created, so Codex\'s sandbox denied a write it should allow' };
   }
   if (negative.exit !== 42 || negative.created) {
     return { pass: false, reason: `negative control failed: a sandboxed write outside the workspace gave ${seen(negative)}; ` +
@@ -116,9 +122,49 @@ export const requestedLine = (argv) => `requested: codex ${argv.join(' ')}`;
 
 // Always read-only: resume takes its sandbox from the resume command, and a pasted line runs with none of do's checks.
 // Quoted for a POSIX shell. An id that would need quoting gets no line.
-export const resumeLine = (threadId) => (typeof threadId === 'string' && /^[A-Za-z0-9-]+$/.test(threadId)
-  ? `codex exec resume ${threadId} --json --ignore-user-config -c 'approval_policy="never"' -c 'sandbox_mode="read-only"' 'your follow-up here'`
+export const resumeLine = (threadId, windowsSandbox) => (typeof threadId === 'string' && /^[A-Za-z0-9-]+$/.test(threadId)
+  ? `codex exec resume ${threadId} --json --ignore-user-config -c 'approval_policy="never"' -c 'sandbox_mode="read-only"' ` +
+    `${windowsSandbox === undefined ? '' : `-c 'windows.sandbox="${windowsSandbox}"' `}'your follow-up here'`
   : null);
+
+// The windows.sandbox value in a Codex config.toml, or undefined: a key of a [windows] table, a top-level dotted key,
+// or a top-level inline table. Lines inside a multiline string are text, not keys, so they are skipped.
+const SANDBOX_KEY = String.raw`(?:sandbox|"sandbox"|'sandbox')\s*=\s*(?:"([^"]*)"|'([^']*)')`;
+const IN_TABLE = new RegExp(`^${SANDBOX_KEY}$`);
+const AT_ROOT = new RegExp(String.raw`^(?:windows|"windows")\s*(?:\.\s*${SANDBOX_KEY}|=\s*\{(?:[^}]*,)?\s*${SANDBOX_KEY}\s*(?:,[^}]*)?\})$`);
+// Scans one line from the multiline string open at its start: returns the one open at its end, and where its comment starts.
+function scanLine(raw, open) {
+  for (let i = 0; i < raw.length;) {
+    if (open) {
+      const end = raw.indexOf(open, i);
+      if (end < 0) break;
+      [i, open] = [end + 3, null];
+    } else if (raw[i] === '#') return { open, cut: i };
+    else if (raw.startsWith('"""', i) || raw.startsWith("'''", i)) [i, open] = [i + 3, raw.slice(i, i + 3)];
+    else if (raw[i] === '"' || raw[i] === "'") {
+      const q = raw[i++];
+      while (i < raw.length && raw[i] !== q) i += q === '"' && raw[i] === '\\' ? 2 : 1;
+      i++;
+    } else i++;
+  }
+  return { open, cut: raw.length };
+}
+
+export function windowsSandboxSetting(toml) {
+  let table = '', open = null;
+  for (const raw of toml.split('\n')) {
+    const wasOpen = open;
+    let cut;
+    ({ open, cut } = scanLine(raw, open));
+    if (wasOpen || open) continue; // a line that is part of a multiline string holds no key this reads
+    const line = raw.slice(0, cut).trim();
+    const header = /^\[\[?\s*["']?([^\]"']*?)["']?\s*\]\]?$/.exec(line);
+    if (header) { table = header[1]; continue; }
+    const m = (table === 'windows' ? IN_TABLE : table === '' ? AT_ROOT : null)?.exec(line);
+    if (m) return m.slice(1).find((v) => v !== undefined);
+  }
+  return undefined;
+}
 
 // Splitting on whitespace is safe only because review takes no free text. Adding free text needs a different format.
 export function parseReviewArgs(text) {

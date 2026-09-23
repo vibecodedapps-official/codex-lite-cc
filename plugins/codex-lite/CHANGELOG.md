@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.1 - 2026-09-23
+
+- On Windows, Codex's sandbox denies every write and every command unless its Windows
+  sandbox mode is set, and `--ignore-user-config` dropped the user's setting. So `do` could
+  not run, and `ask` and `review` could not run commands. The plugin now reads the
+  `[windows]` `sandbox` value (`"unelevated"` or `"elevated"`) from your Codex config and
+  passes it as `-c windows.sandbox="<value>"` on every run, probe and resume line. When it is
+  not set, `do` refuses and says what to add, `ask` and `review` warn, and `setup` reports
+  it.
+- The sandbox probe no longer says the host cannot sandbox when the positive control fails.
+- `setup` prints the allow rules as JSON strings, ready to paste into `permissions.allow`.
+  The Bash rule has a `*` in place of the plugin version, so it survives updates.
+
 ## 0.2.0 - 2026-09-23
 
 - On Windows, the npm global install of Codex (`npm install -g @openai/codex`) now works.

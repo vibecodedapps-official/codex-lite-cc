@@ -21,20 +21,35 @@ Installs track `main`. Every merge to `main` bumps the version.
   `codex.exe` on `PATH` is used first. For the npm install the plugin runs the `codex.exe`
   inside the npm package directly, because a `.cmd` file cannot be started without a
   shell. Codex installed with pnpm, bun or another package manager is not recognized.
+- On Windows, Codex's sandbox mode must be set in your Codex config
+  (`~/.codex/config.toml`, or `$CODEX_HOME/config.toml`):
+
+  ```toml
+  [windows]
+  sandbox = "unelevated"
+  ```
+
+  Use `"elevated"` instead if you have admin rights and have accepted Codex's one-time
+  elevated sandbox setup. Without this setting, Codex's sandbox denies every write and every
+  command, even inside the working directory. `do` refuses to run, and `ask` and `review`
+  run with a warning. `/codex-lite:setup` reports the value it found. The plugin also reads
+  `windows.sandbox = "..."` at the top level of the file and `windows = { sandbox = "..." }`.
 
 ## Commands
 
 Every Codex run gets the same safety flags: `--json --ignore-user-config
 -c approval_policy="never" -c sandbox_mode="<mode>"`. Codex never asks for approval, your
 Codex config file is not read, and the sandbox mode is set on the command line. No command
-requests full access.
+requests full access. On Windows there is one exception: the plugin reads the `[windows]`
+`sandbox` value from your Codex config and passes it as `-c windows.sandbox="<value>"` on
+every run and probe, because `--ignore-user-config` would otherwise drop it.
 
 | Command | Runs | Sandbox |
 | --- | --- | --- |
 | `/codex-lite:ask <question>` | `codex exec <flags> -`, the question on stdin | `read-only` |
 | `/codex-lite:review [--base <ref>] [--model <name>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>`, plus `--model <name>` if given | `read-only` |
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
-| `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe | `workspace-write`, probe only |
+| `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
 
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
@@ -71,6 +86,10 @@ result looks wrong, run `/codex-lite:setup`.
 
 - A `workspace-write` run can also write to the system temporary directory. That is Codex's
   default, not a choice this plugin makes.
+- On Windows with `sandbox = "unelevated"`, the probe can pass while Codex still cannot start
+  its shell. This was seen on 2026-09-23 with codex-cli 0.156.1 and PowerShell 7 installed
+  from the Microsoft Store: every command failed with "CreateProcessAsUserW failed". With
+  `"elevated"` the same run worked.
 - `do` has no network. It cannot install packages, fetch dependencies or call an API.
 - `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
   fails and `HEAD` stays where it was. Commit the result yourself.
@@ -114,7 +133,8 @@ codex exec resume <thread id> --json --ignore-user-config -c 'approval_policy="n
 
 It always requests `read-only`, even after `do`, because a pasted line runs without any of the
 plugin's checks, in whatever directory you are in. To continue a write run, change
-`read-only` to `workspace-write`, and paste it from the same directory.
+`read-only` to `workspace-write`, and paste it from the same directory. On Windows the line
+also carries the `-c 'windows.sandbox="<value>"'` the run used.
 
 Moving a Claude Code session into Codex is out of scope. Codex has its own importer for
 sessions from other agents; use that.
@@ -130,8 +150,10 @@ option to allow Claude to edit files in its `~/.claude` folder.
 
 Each command file lists its own script call in `allowed-tools`, which pre-approves it, so the
 Bash call is not prompted. `/codex-lite:setup` prints allow rules you can add to your settings
-and adds none itself. A rule that names the plugin's install path contains the version number
-and must be updated after each release.
+and adds none itself. It prints them as JSON strings, ready to paste into the
+`permissions.allow` array. The Bash rule has a `*` in place of the plugin's version
+directory, so it still matches after an update. On Windows its path mixes `\` and `/`, because that is how the
+command files write the command the rule must match.
 
 ## Development
 

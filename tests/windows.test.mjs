@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, linkSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cli, withScratch } from './fixtures/harness.mjs';
+import { cli, run, withScratch } from './fixtures/harness.mjs';
 
 const windows = { skip: process.platform !== 'win32' && 'Codex is looked up on PATH only on Windows' };
 const TARGET = { x64: 'x86_64-pc-windows-msvc', arm64: 'aarch64-pc-windows-msvc' }[process.arch];
@@ -50,4 +50,40 @@ test('a codex.cmd that is not an npm install is refused', windows, withScratch((
   assert.equal(setup(s, dir), `codex: codex-lite: the codex.cmd in ${dir} is not an npm install of Codex ` +
     `(no ${join(dir, 'node_modules', '@openai', 'codex', 'bin', 'codex.js')}); pnpm, bun and other installers are not supported; ` +
     'install Codex with npm install -g @openai/codex, or the standalone Codex for Windows');
+}));
+
+// Node stands in for Codex: these runs stop, or fail, before anything depends on what Codex says.
+const unset = (file) => `Codex's Windows sandbox mode is not set in ${file}, and without it Codex's sandbox denies every write and every ` +
+  'command; add a [windows] table with sandbox = "unelevated" there, or "elevated" if you have admin rights';
+
+test('setup reports the Windows sandbox mode from $CODEX_HOME/config.toml, or that it is not set', windows, withScratch((s) => {
+  const row = (env) => cli(s, ['setup', s.data], { cwd: s.plain, env: { CODEX_LITE_CODEX_BIN: process.execPath, ...env } }).stdout.split('\n')[1];
+  writeFileSync(join(s.data, 'config.toml'), '[windows]\r\nsandbox = "elevated"\r\n');
+  assert.equal(row({ CODEX_HOME: s.data }), `windows sandbox: elevated, from ${join(s.data, 'config.toml')}`);
+  assert.equal(row({ CODEX_HOME: s.plain }), `windows sandbox: ${unset(join(s.plain, 'config.toml'))}`);
+}));
+
+test('do refuses before running Codex when the Windows sandbox mode is not set', windows, withScratch((s) => {
+  const r = run(s, 'do', { request: 'go', env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.plain } });
+  assert.equal(r.stdout, `codex-lite: do was not run: ${unset(join(s.plain, 'config.toml'))}\n`);
+  assert.equal(r.status, 1);
+}));
+
+test('ask runs without the Windows sandbox mode but warns', windows, withScratch((s) => {
+  const r = run(s, 'ask', { request: 'q', env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.plain } });
+  assert.equal(r.stdout.split('\n')[2], `codex-lite: warning: ${unset(join(s.plain, 'config.toml'))}`);
+}));
+
+test('a configured Windows sandbox mode reaches the Codex command line', windows, withScratch((s) => {
+  writeFileSync(join(s.data, 'config.toml'), '[windows]\nsandbox = "elevated"\n');
+  const r = run(s, 'ask', { request: 'q', env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.data } });
+  assert.equal(r.stdout.split('\n')[0], 'requested: codex exec --json --ignore-user-config -c approval_policy="never" ' +
+    '-c sandbox_mode="read-only" -c windows.sandbox="elevated" -');
+}));
+
+test('setup does not run the sandbox probe when the Codex config cannot be read', windows, withScratch((s) => {
+  mkdirSync(join(s.data, 'config.toml'));
+  const r = cli(s, ['setup', s.data], { cwd: s.plain, env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.data } });
+  assert.match(r.stdout, /\nwindows sandbox: codex-lite: could not read .*config\.toml: EISDIR/);
+  assert.match(r.stdout, /\nsandbox: not tested until the windows sandbox row passes\n/);
 }));

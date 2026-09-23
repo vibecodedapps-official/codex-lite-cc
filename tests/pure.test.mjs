@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  buildArgv, readStream, decideProbe, validateRequestId, requestedLine, resumeLine, parseReviewArgs, PROBE_SCRIPT,
+  buildArgv, readStream, decideProbe, validateRequestId, requestedLine, resumeLine, parseReviewArgs, PROBE_SCRIPT, windowsSandboxSetting,
 } from '../plugins/codex-lite/scripts/codex.mjs';
 
 const ONE_LINER = 'try{require("fs").writeFileSync(process.argv[1],"x");process.exit(0)}catch(e){' +
@@ -39,6 +39,20 @@ test('ask', () => {
 test('do', () => {
   assert.deepEqual(buildArgv('do'), ['exec', '--json', '--ignore-user-config',
     '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '-']);
+});
+
+test('a Windows sandbox mode is passed on every sandboxed call', () => {
+  const win = ['-c', 'windows.sandbox="unelevated"'];
+  assert.deepEqual(buildArgv('review', { windowsSandbox: 'unelevated' }), ['exec', 'review', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', ...win, '--uncommitted']);
+  assert.deepEqual(buildArgv('do', { windowsSandbox: 'unelevated' }), ['exec', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', ...win, '-']);
+  assert.deepEqual(buildArgv('sandbox', { execPath: 'C:\node.exe', target: 'C:\p', windowsSandbox: 'unelevated' }), [
+    'sandbox', '-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"', ...win, '--', 'C:\node.exe', '-e', ONE_LINER, 'C:\p']);
+});
+
+test('buildArgv refuses a Windows sandbox mode other than unelevated or elevated', () => {
+  assert.throws(() => buildArgv('ask', { windowsSandbox: 'none' }), /unexpected -c override/);
 });
 
 test('setup: version', () => {
@@ -211,6 +225,38 @@ test('resume line runs as pasted into a POSIX shell', { skip: process.platform =
   const out = spawnSync('sh', ['-c', `set -- ${resumeLine('t-9')}; printf '%s\\n' "$@"`], { encoding: 'utf8' });
   assert.deepEqual(out.stdout.split('\n').slice(0, -1), ['codex', 'exec', 'resume', 't-9', '--json', '--ignore-user-config',
     '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', 'your follow-up here']);
+});
+
+test('resume line carries the Windows sandbox mode when there is one', () => {
+  assert.equal(resumeLine('t-9', 'elevated'), 'codex exec resume t-9 --json --ignore-user-config ' +
+    '-c \'approval_policy="never"\' -c \'sandbox_mode="read-only"\' -c \'windows.sandbox="elevated"\' \'your follow-up here\'');
+});
+
+test('windowsSandboxSetting reads windows.sandbox and nothing else', () => {
+  assert.equal(windowsSandboxSetting('model = "x"\r\n\r\n[windows]\r\nsandbox = "elevated" # admin\r\n\r\n[tui]\r\n'), 'elevated');
+  assert.equal(windowsSandboxSetting("[ windows ]\nsandbox='unelevated'\n"), 'unelevated');
+  assert.equal(windowsSandboxSetting('sandbox = "elevated"\n[other]\nsandbox = "elevated"\n[windows]\n# sandbox = "elevated"\n'), undefined);
+  assert.equal(windowsSandboxSetting(''), undefined);
+});
+
+test('windowsSandboxSetting reads the dotted, inline and quoted forms', () => {
+  assert.equal(windowsSandboxSetting('windows.sandbox = "elevated"\n'), 'elevated');
+  assert.equal(windowsSandboxSetting('windows = { other = 1, sandbox = "unelevated" }\n'), 'unelevated');
+  assert.equal(windowsSandboxSetting('["windows"]\n"sandbox" = "elevated"\n'), 'elevated');
+  assert.equal(windowsSandboxSetting('[tui]\nwindows.sandbox = "elevated"\n'), undefined);
+});
+
+test('windowsSandboxSetting skips multiline strings', () => {
+  for (const q of ["'''", '"""']) {
+    assert.equal(windowsSandboxSetting(`notes = ${q}\n[windows]\nsandbox = "unelevated"\n${q}\n[windows]\nsandbox = "elevated"\n`), 'elevated');
+  }
+  assert.equal(windowsSandboxSetting('one = """x"""\n[windows]\nsandbox = "elevated"\n'), 'elevated');
+});
+
+test('windowsSandboxSetting ignores delimiters inside comments and one-line strings, and # inside a value', () => {
+  assert.equal(windowsSandboxSetting('# see """ docs\n[windows] # admin\nsandbox = "elevated"\n'), 'elevated');
+  assert.equal(windowsSandboxSetting('x = "has \'\'\' and \\" in it"\n[windows]\nsandbox = "elevated"\n'), 'elevated');
+  assert.equal(windowsSandboxSetting('[windows]\nsandbox = "x#y"\n'), 'x#y');
 });
 
 test('review arguments: empty means the working tree', () => {

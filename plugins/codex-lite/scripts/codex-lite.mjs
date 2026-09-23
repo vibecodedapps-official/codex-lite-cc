@@ -6,7 +6,8 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, 
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { NPM_WIN32, buildArgv, decideProbe, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId } from './codex.mjs';
+import { NPM_WIN32, WINDOWS_SANDBOXES, buildArgv, decideProbe, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId,
+  windowsSandboxSetting } from './codex.mjs';
 
 const started = Date.now();
 // Test-only seams, read once. CODEX_LITE_TIMEOUT_MS replaces both deadlines below.
@@ -114,6 +115,21 @@ function resolveCodex() {
   return bin;
 }
 
+// On Windows, Codex's sandbox denies every write and every command unless its mode is set, and --ignore-user-config
+// drops the user's setting. So this one key is read from the Codex config and passed on each call.
+function windowsSandbox() {
+  if (POSIX) return {};
+  const file = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'config.toml');
+  let value;
+  try { value = windowsSandboxSetting(readFileSync(file, 'utf8')); } catch (e) {
+    if (e.code !== 'ENOENT') refuse(`could not read ${file}: ${e.message}`);
+  }
+  if (WINDOWS_SANDBOXES.includes(value)) return { value, file };
+  const found = value === undefined ? 'is not set' : `is ${JSON.stringify(value)}, which is neither "unelevated" nor "elevated"`;
+  return { file, problem: `Codex's Windows sandbox mode ${found} in ${file}, and without it Codex's sandbox denies every write and ` +
+    'every command; add a [windows] table with sandbox = "unelevated" there, or "elevated" if you have admin rights' };
+}
+
 // The file is deleted on every path: a leftover blocks the next Write with an error that names nothing.
 function takeRequest(dataDir, id) {
   const file = join(dataDir, `request-${id}.txt`);
@@ -150,7 +166,7 @@ const real = (p) => { try { return realpathSync(p); } catch { return p; } };
 
 // Three checks: the target is writable without a sandbox, a sandboxed write inside the working directory lands, and
 // a sandboxed write to the target is denied. Every file any of them creates is removed.
-async function probe(codex, cwd) {
+async function probe(codex, cwd, windowsSandbox) {
   const rel = relative(real(cwd), real(homedir()));
   if (rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))) {
     return { pass: false, reason: `the probe target ${PROBE_TARGET} is inside this working directory (your home directory or one of its ` +
@@ -164,7 +180,7 @@ async function probe(codex, cwd) {
         'cannot be tested from here. This says nothing about whether the host can sandbox' };
     }
     const control = async (name, target) => {
-      const r = await local(`codex sandbox (${name})`, codex, buildArgv('sandbox', { execPath: process.execPath, target }), cwd);
+      const r = await local(`codex sandbox (${name})`, codex, buildArgv('sandbox', { execPath: process.execPath, target, windowsSandbox }), cwd);
       return { exit: r.code, created: existsSync(target), code: r.stderr.trim() };
     };
     const positive = await control('positive control', join(dir, 'probe'));
@@ -214,8 +230,10 @@ async function main() {
   if (!validateRequestId(id)) refuse('the session id is missing or malformed, so no request file was opened');
   const text = takeRequest(dataDir, id);
   if (command !== 'review' && !text.trim()) refuse('the request is empty; nothing was sent to Codex');
+  const win = windowsSandbox();
+  if (command === 'do' && win.problem) refuse(`do was not run: ${win.problem}`);
   let args, argv;
-  try { args = command === 'review' ? parseReviewArgs(text) : {}; argv = buildArgv(command, args); } catch (e) { refuse(`review arguments refused: ${e.message}`); }
+  try { args = command === 'review' ? parseReviewArgs(text) : {}; argv = buildArgv(command, { ...args, windowsSandbox: win.value }); } catch (e) { refuse(`review arguments refused: ${e.message}`); }
   const codex = resolveCodex();
   const cwd = process.cwd();
   const top = await git(['rev-parse', '--show-toplevel'], cwd);
@@ -223,7 +241,7 @@ async function main() {
   let before;
   if (command === 'review') await reviewChecks(args.base, cwd, top.stdout.trim());
   if (command === 'do') {
-    const p = await probe(codex, cwd).catch((e) => { if (e instanceof Refusal) return { reason: e.message }; throw e; });
+    const p = await probe(codex, cwd, win.value).catch((e) => { if (e instanceof Refusal) return { reason: e.message }; throw e; });
     if (!p.pass) refuse(`do was not run: ${p.reason}`);
     before = await head(cwd);
   }
@@ -232,6 +250,7 @@ async function main() {
   Object.assign(r, reader.end());
   const why = failures(r);
   out.push(requestedLine(argv), `cwd: ${cwd}`);
+  if (win.problem) out.push(`codex-lite: warning: ${win.problem}`);
   if (command === 'do') out.push('sandbox: workspace-write proven on this host before the run; the system temp directory stays writable');
   out.push('', ...(why.length ? [`codex-lite: the run failed: ${why.join('; ')}`, ...(r.stderr ? [r.stderr.replace(/\n$/, '')] : [])] : [r.finalMessage]), '');
   if (command === 'do') {
@@ -243,7 +262,7 @@ async function main() {
   }
   if (r.unparseableLines) out.push(`unparseable stream lines: ${r.unparseableLines}`);
   if (r.threadId) out.push(`thread ${r.threadId}`);
-  const resume = resumeLine(r.threadId);
+  const resume = resumeLine(r.threadId, win.value);
   if (resume) out.push(`Resume: ${resume}`);
   return why.length === 0;
 }
@@ -269,18 +288,34 @@ async function setup(dataDir) {
     const r = await local('codex --version', codex, buildArgv('version'), cwd);
     return [r.code === 0, said(r)];
   });
+  // Stays null on Windows when the row below fails, whether by a missing mode or an unreadable config.
+  let win = POSIX ? {} : null;
+  if (!POSIX) {
+    await check('windows sandbox', async () => {
+      const w = windowsSandbox();
+      if (!w.problem) win = w;
+      return [!w.problem, w.problem ?? `${w.value}, from ${w.file}`];
+    });
+  }
   if (codex) {
     await check('login', async () => {
       const r = await local('codex login status', codex, buildArgv('login'), cwd);
       return [r.code === 0, r.code === 0 ? said(r) : `not logged in: ${said(r)}; run codex login`];
     });
-    await check('sandbox', async () => { const p = await probe(codex, cwd); return [p.pass, p.reason]; });
+    await check('sandbox', async () => {
+      if (!win) return [false, 'not tested until the windows sandbox row passes'];
+      const p = await probe(codex, cwd, win.value);
+      return [p.pass, p.reason];
+    });
   }
   // Claude Code permission rules write an absolute path with a leading //; Windows paths as //c/Users/...
   const abs = POSIX ? dataDir.replace(/\/+$/, '') : `/${dataDir.replace(/^([A-Za-z]):/, (_, d) => d.toLowerCase()).replaceAll('\\', '/').replace(/\/+$/, '')}`;
-  out.push('', 'Allow rules for this plugin. setup adds neither; add them to permissions.allow in your Claude Code settings if you want them:',
-    `  Edit(/${abs}/**)`, `  Bash(node "${dirname(dirname(process.argv[1]))}/scripts/codex-lite.mjs" *)`,
-    'The Bash rule names the installed version\'s path, so it changes with every release.');
+  // The Bash rule matches the command as the command files write it: the plugin root, then /scripts, so on Windows the
+  // slashes are mixed. Its * stands for the separator and the version directory, so no \ comes right before it.
+  const rules = [`Edit(/${abs}/**)`, `Bash(node "${dirname(dirname(dirname(process.argv[1])))}*/scripts/codex-lite.mjs" *)`];
+  out.push('', 'Allow rules for this plugin, as JSON strings. setup adds neither; to use them, paste them into the permissions.allow ' +
+    'array in your Claude Code settings:', ...rules.map((r, i) => `  ${JSON.stringify(r)}${i < rules.length - 1 ? ',' : ''}`),
+  'The * in the Bash rule stands for the plugin version, so the rule still matches after an update.');
   return ok;
 }
 
