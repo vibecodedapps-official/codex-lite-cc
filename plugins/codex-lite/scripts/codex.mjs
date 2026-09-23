@@ -131,8 +131,8 @@ export const resumeLine = (threadId, windowsSandbox) => (typeof threadId === 'st
 // or a top-level inline table. Lines inside a multiline string are text, not keys, so they are skipped.
 const SANDBOX_KEY = String.raw`(?:sandbox|"sandbox"|'sandbox')\s*=\s*(?:"([^"]*)"|'([^']*)')`;
 const IN_TABLE = new RegExp(`^${SANDBOX_KEY}$`);
-const DOTTED = new RegExp(String.raw`^(?:windows|"windows")\s*\.\s*${SANDBOX_KEY}$`);
-const INLINE = /^(?:windows|"windows")\s*=\s*\{(.*)\}$/;
+const DOTTED = new RegExp(String.raw`^(?:windows|"windows"|'windows')\s*\.\s*${SANDBOX_KEY}$`);
+const INLINE = /^(?:windows|"windows"|'windows')\s*=\s*\{(.*)\}$/;
 // The key/value pairs of an inline table's body: split on the commas outside strings and nested tables or arrays.
 function inlinePairs(body) {
   const pairs = [];

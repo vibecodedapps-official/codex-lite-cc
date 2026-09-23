@@ -243,6 +243,8 @@ test('windowsSandboxSetting reads the dotted, inline and quoted forms', () => {
   assert.equal(windowsSandboxSetting('windows.sandbox = "elevated"\n'), 'elevated');
   assert.equal(windowsSandboxSetting('windows = { other = 1, sandbox = "unelevated" }\n'), 'unelevated');
   assert.equal(windowsSandboxSetting('["windows"]\n"sandbox" = "elevated"\n'), 'elevated');
+  assert.equal(windowsSandboxSetting("'windows'.sandbox = 'elevated'\n"), 'elevated');
+  assert.equal(windowsSandboxSetting("'windows' = { sandbox = 'elevated' }\n"), 'elevated');
   assert.equal(windowsSandboxSetting('[tui]\nwindows.sandbox = "elevated"\n'), undefined);
 });
 
