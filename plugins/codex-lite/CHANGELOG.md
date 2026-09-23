@@ -11,7 +11,6 @@
   it.
 - The sandbox probe no longer says the host cannot sandbox when the positive control fails.
 - `setup` prints the allow rules as JSON strings, ready to paste into `permissions.allow`.
-  The Bash rule has a `*` in place of the plugin version, so it survives updates.
 
 ## 0.2.0 - 2026-09-23
 

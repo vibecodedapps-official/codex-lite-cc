@@ -151,9 +151,11 @@ option to allow Claude to edit files in its `~/.claude` folder.
 Each command file lists its own script call in `allowed-tools`, which pre-approves it, so the
 Bash call is not prompted. `/codex-lite:setup` prints allow rules you can add to your settings
 and adds none itself. It prints them as JSON strings, ready to paste into the
-`permissions.allow` array. The Bash rule has a `*` in place of the plugin's version
-directory, so it still matches after an update. On Windows its path mixes `\` and `/`, because that is how the
-command files write the command the rule must match.
+`permissions.allow` array. The Bash rule names the installed version's path, so it must be
+updated after each release; until then Claude asks again. It has no `*` in the path, because
+Claude Code's `*` would also match another plugin's directory or a path through `..`. On
+Windows its path mixes `\` and `/`, because that is how the command files write the command
+the rule must match.
 
 ## Development
 

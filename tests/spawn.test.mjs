@@ -85,8 +85,8 @@ test('setup: version, login and both probe rows, and the printed allow rules', s
   assert.equal(r.stdout, 'codex: codex-cli 0.155.1\nlogin: Logged in using ChatGPT\n' +
     'sandbox: workspace-write proven: an inside write landed and an outside write was denied (EPERM)\n\n' +
     'Allow rules for this plugin, as JSON strings. setup adds neither; to use them, paste them into the permissions.allow array in your Claude Code settings:\n' +
-    `  "Edit(/${s.data}/**)",\n  "Bash(node \\"${dirname(dirname(dirname(SCRIPT)))}*/scripts/codex-lite.mjs\\" *)"\n` +
-    'The * in the Bash rule stands for the plugin version, so the rule still matches after an update.\n');
+    `  "Edit(/${s.data}/**)",\n  "Bash(node \\"${dirname(dirname(SCRIPT))}/scripts/codex-lite.mjs\\" *)"\n` +
+    'The Bash rule names the installed version\'s path, so it changes with every release.\n');
   assert.equal(r.status, 0);
   assert.deepEqual(readdirSync(s.plain), []);
 }));
@@ -102,7 +102,7 @@ test('setup prints the Bash rule for the script path as invoked, even through a 
   symlinkSync(dirname(dirname(SCRIPT)), link);
   const r = spawnSync(process.execPath, [join(link, 'scripts', 'codex-lite.mjs'), 'setup', s.data],
     { cwd: s.plain, encoding: 'utf8', env: { ...process.env, CODEX_LITE_CODEX_BIN: FAKE, CODEX_LITE_PROBE_TARGET: s.target } });
-  assert.match(r.stdout, new RegExp(`\\n  "Bash\\(node \\\\"${s.root}\\*/scripts/codex-lite\\.mjs\\\\" \\*\\)"\\n`));
+  assert.match(r.stdout, new RegExp(`\\n  "Bash\\(node \\\\"${link}/scripts/codex-lite\\.mjs\\\\" \\*\\)"\\n`));
 }));
 
 test('setup from the home directory reports the toolchain and says the probe target is unusable from here', spawning, withScratch((s) => {
