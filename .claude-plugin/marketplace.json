@@ -1,0 +1,14 @@
+{
+  "name": "vibecodedapps-codex-lite",
+  "owner": {
+    "name": "vibecodedapps.net"
+  },
+  "plugins": [
+    {
+      "name": "codex-lite",
+      "source": "./plugins/codex-lite",
+      "description": "Hand a task to the Codex CLI, run it once, and print what it said.",
+      "version": "0.1.0"
+    }
+  ]
+}

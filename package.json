@@ -1,0 +1,15 @@
+{
+  "name": "codex-lite-cc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code plugin that hands a task to the Codex CLI, runs it once, and prints what it said.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "lint": "node tools/lint.mjs"
+  }
+}

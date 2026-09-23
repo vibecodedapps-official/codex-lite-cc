@@ -1,0 +1,13 @@
+---
+description: Check the Codex CLI version, login, and write sandbox, and print the allow rules for this plugin
+disable-model-invocation: true
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" setup *)
+---
+
+Run exactly this one Bash command, with no changes and no timeout:
+
+```
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" setup "${CLAUDE_PLUGIN_DATA}"
+```
+
+Return its output verbatim, with no commentary before or after it. Run no other command and change no settings.
