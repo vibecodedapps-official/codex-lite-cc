@@ -1,5 +1,5 @@
 ---
-description: Check the Codex CLI version, login, and write sandbox, and print the allow rules for this plugin
+description: Check the Codex CLI version, login, Windows sandbox mode, and write sandbox, and print the allow rules for this plugin
 disable-model-invocation: true
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" setup *)
 ---
