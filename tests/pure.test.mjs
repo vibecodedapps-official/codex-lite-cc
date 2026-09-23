@@ -246,6 +246,12 @@ test('windowsSandboxSetting reads the dotted, inline and quoted forms', () => {
   assert.equal(windowsSandboxSetting('[tui]\nwindows.sandbox = "elevated"\n'), undefined);
 });
 
+test('windowsSandboxSetting reads an inline table by its structure, not by the text inside its strings', () => {
+  assert.equal(windowsSandboxSetting('windows = { note = "}", sandbox = "elevated" }\n'), 'elevated');
+  assert.equal(windowsSandboxSetting('windows = { a = { b = 1 }, sandbox = "elevated" }\n'), 'elevated');
+  assert.equal(windowsSandboxSetting('windows = { note = "a, sandbox = \'elevated\', b" }\n'), undefined);
+});
+
 test('windowsSandboxSetting skips multiline strings', () => {
   for (const q of ["'''", '"""']) {
     assert.equal(windowsSandboxSetting(`notes = ${q}\n[windows]\nsandbox = "unelevated"\n${q}\n[windows]\nsandbox = "elevated"\n`), 'elevated');

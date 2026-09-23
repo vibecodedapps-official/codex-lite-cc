@@ -131,7 +131,23 @@ export const resumeLine = (threadId, windowsSandbox) => (typeof threadId === 'st
 // or a top-level inline table. Lines inside a multiline string are text, not keys, so they are skipped.
 const SANDBOX_KEY = String.raw`(?:sandbox|"sandbox"|'sandbox')\s*=\s*(?:"([^"]*)"|'([^']*)')`;
 const IN_TABLE = new RegExp(`^${SANDBOX_KEY}$`);
-const AT_ROOT = new RegExp(String.raw`^(?:windows|"windows")\s*(?:\.\s*${SANDBOX_KEY}|=\s*\{(?:[^}]*,)?\s*${SANDBOX_KEY}\s*(?:,[^}]*)?\})$`);
+const DOTTED = new RegExp(String.raw`^(?:windows|"windows")\s*\.\s*${SANDBOX_KEY}$`);
+const INLINE = /^(?:windows|"windows")\s*=\s*\{(.*)\}$/;
+// The key/value pairs of an inline table's body: split on the commas outside strings and nested tables or arrays.
+function inlinePairs(body) {
+  const pairs = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c === '"' || c === "'") {
+      for (i++; i < body.length && body[i] !== c;) i += c === '"' && body[i] === '\\' ? 2 : 1;
+    } else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') depth--;
+    else if (c === ',' && depth === 0) { pairs.push(body.slice(start, i).trim()); start = i + 1; }
+  }
+  return [...pairs, body.slice(start).trim()];
+}
+const atRoot = (line) => DOTTED.exec(line) ?? inlinePairs(INLINE.exec(line)?.[1] ?? '').map((p) => IN_TABLE.exec(p)).find(Boolean);
 // Scans one line from the multiline string open at its start: returns the one open at its end, and where its comment starts.
 function scanLine(raw, open) {
   for (let i = 0; i < raw.length;) {
@@ -160,7 +176,7 @@ export function windowsSandboxSetting(toml) {
     const line = raw.slice(0, cut).trim();
     const header = /^\[\[?\s*["']?([^\]"']*?)["']?\s*\]\]?$/.exec(line);
     if (header) { table = header[1]; continue; }
-    const m = (table === 'windows' ? IN_TABLE : table === '' ? AT_ROOT : null)?.exec(line);
+    const m = table === 'windows' ? IN_TABLE.exec(line) : table === '' ? atRoot(line) : null;
     if (m) return m.slice(1).find((v) => v !== undefined);
   }
   return undefined;
