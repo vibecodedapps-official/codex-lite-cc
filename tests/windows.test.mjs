@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, linkSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cli, run, withScratch } from './fixtures/harness.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { SANDBOX, calls, cli, run, withScratch } from './fixtures/harness.mjs';
 
 const windows = { skip: process.platform !== 'win32' && 'Codex is looked up on PATH only on Windows' };
 const TARGET = { x64: 'x86_64-pc-windows-msvc', arm64: 'aarch64-pc-windows-msvc' }[process.arch];
@@ -79,6 +80,18 @@ test('a configured Windows sandbox mode reaches the Codex command line', windows
   const r = run(s, 'ask', { request: 'q', env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.data } });
   assert.equal(r.stdout.split('\n')[0], 'requested: codex exec --json --ignore-user-config -c approval_policy="never" ' +
     '-c sandbox_mode="read-only" -c windows.sandbox="elevated" -');
+}));
+
+test('do passes a configured Windows sandbox mode to both probe controls and runs', windows, withScratch((s) => {
+  writeFileSync(join(s.data, 'config.toml'), '[windows]\nsandbox = "elevated"\n');
+  const shim = pathToFileURL(fileURLToPath(new URL('./fixtures/node-as-codex.mjs', import.meta.url))).href;
+  const r = run(s, 'do', { request: 'go', env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.data, NODE_OPTIONS: `--import "${shim}"` } });
+  const [positive, negative] = calls(s);
+  const probe = [...SANDBOX.slice(0, 5), '-c', 'windows.sandbox="elevated"', ...SANDBOX.slice(5)];
+  assert.deepEqual(positive.slice(0, -1), probe);
+  assert.deepEqual(negative, [...probe, s.target]);
+  assert.equal(r.stdout.split('\n')[2], 'sandbox: workspace-write proven on this host before the run; the system temp directory stays writable');
+  assert.equal(r.status, 0);
 }));
 
 test('setup does not run the sandbox probe when the Codex config cannot be read', windows, withScratch((s) => {
