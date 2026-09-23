@@ -16,9 +16,11 @@ Installs track `main`. Every merge to `main` bumps the version.
 
 - Node 22 or later.
 - The Codex CLI on `PATH`, logged in (`codex login`).
-- On Windows, only the standalone Codex install is supported. If only the npm install
-  (`codex.cmd`) is on `PATH`, the plugin refuses to run. Windows is unverified: the code
-  handles it, but nothing has been run there by hand yet.
+- On Windows, the standalone install (`codex.exe` on `PATH`) and the npm global install
+  (`npm install -g @openai/codex`, which puts `codex.cmd` on `PATH`) both work. A
+  `codex.exe` on `PATH` is used first. For the npm install the plugin runs the `codex.exe`
+  inside the npm package directly, because a `.cmd` file cannot be started without a
+  shell. Codex installed with pnpm, bun or another package manager is not recognized.
 
 ## Commands
 
@@ -129,7 +131,7 @@ npm run lint
 
 No dependencies. The tests run against a fake Codex executable and scratch git repositories.
 CI runs on Linux, macOS and Windows. On Windows CI the tests that start the fake Codex, start a POSIX shell, or rely on POSIX file
-modes are skipped, so a green Windows run says nothing about how the plugin starts Codex.
+modes are skipped. The Windows-only tests cover how the plugin finds Codex on `PATH`, not what it does with it.
 
 Test-only environment variables, read once at startup:
 

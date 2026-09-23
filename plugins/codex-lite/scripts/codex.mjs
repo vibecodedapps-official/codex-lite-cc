@@ -13,6 +13,9 @@ const ALLOWED_OVERRIDES = ['approval_policy="never"', 'sandbox_mode="read-only"'
 export const PROBE_SCRIPT = 'try{require("fs").writeFileSync(process.argv[1],"x");process.exit(0)}catch(e){' +
   'process.stderr.write(String(e&&e.code));process.exit(e&&(e.code==="EPERM"||e.code==="EACCES")?42:9)}';
 
+// The npm install's native binary on Windows, by Node arch: [platform package, target], as its bin/codex.js names them.
+export const NPM_WIN32 = { x64: ['@openai/codex-win32-x64', 'x86_64-pc-windows-msvc'], arm64: ['@openai/codex-win32-arm64', 'aarch64-pc-windows-msvc'] };
+
 // A value starting with "-" would reach Codex or git as an option.
 const plain = (name, v) => {
   if (typeof v !== 'string' || v === '' || v.startsWith('-')) throw new Error(`${name} ${JSON.stringify(v)} is empty or starts with "-"; refused`);

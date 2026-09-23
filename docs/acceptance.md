@@ -78,12 +78,14 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     timeout. Record whether the script and Codex's process group are gone afterwards. If
     anything survives, the ten-minute cap in the README does not hold for `do`, and a
     surviving `do` run keeps writing with no footer.
-15. **Windows install.** Install Codex the standalone way on Windows and record whether
-    `codex.exe` lands on `PATH`. The plugin's refusal for an npm-only install names the
-    standalone install as the supported one, and that has not been confirmed.
+15. **Windows install.** On Windows, run `/codex-lite:setup` and `/codex-lite:ask` twice:
+    once with only the standalone Codex on `PATH`, and once with only the npm global install
+    (`npm install -g @openai/codex`). Record the Codex version `setup` reports each time and
+    whether `ask` returns an answer.
 
 ## Record
 
 | Date | Version | Platform | Codex version | Result |
 | --- | --- | --- | --- | --- |
 | 2026-09-23 | 0.1.0 | macOS, Claude Code 2.1.280, headless (`claude -p --plugin-dir`) | codex-cli 0.155.1 | Headless transport check passed: plugin data directory and session id substituted in the command body, a request with a double quote, a backtick, `$(id)`, a backslash, a newline, a leading hyphen and a denied flag name arrived byte for byte (plus one trailing newline the model added), `--base topic/$(id) --model x` arrived byte for byte with nothing executed. Items 1 to 15 not yet run. |
+| 2026-09-23 | 0.2.0 | Windows 11 Pro 10.0.26200, entry script run directly with `node` (no Claude Code session) | codex-cli 0.156.1 standalone; codex-cli 0.154.0 from `npm install -g @openai/codex` (package 0.154.0) | Item 15 in part: with each install as the only Codex on `PATH`, `setup` reported its version and login, and `ask` returned an answer. On both, the sandbox probe's positive control failed (exit 42, EPERM), so `do` refuses on this host. Items 1 to 14 not run; macOS not run for this version. |

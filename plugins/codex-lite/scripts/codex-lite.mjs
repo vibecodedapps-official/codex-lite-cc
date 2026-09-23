@@ -3,9 +3,10 @@
 // The data directory arrives as an argument: inside the Bash tool the environment can carry another plugin's value.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { buildArgv, decideProbe, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId } from './codex.mjs';
+import { NPM_WIN32, buildArgv, decideProbe, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId } from './codex.mjs';
 
 const started = Date.now();
 // Test-only seams, read once. CODEX_LITE_TIMEOUT_MS replaces both deadlines below.
@@ -84,18 +85,33 @@ async function local(name, file, args, cwd) {
 }
 const git = (args, cwd) => local(`git ${args.join(' ')}`, 'git', args, cwd);
 
-// On Windows only codex.exe is run: the npm launcher is a .cmd, which cannot be started without a shell.
+// On Windows only a codex.exe is run: the npm launcher is a .cmd, which cannot be started without a shell. A codex.exe
+// on PATH wins; else the first codex.cmd must be an npm install, and its binary is found the way bin/codex.js finds it.
+// Running the binary rather than bin/codex.js keeps a timeout's kill on Codex itself, not on a node wrapper.
 function resolveCodex() {
   if (CODEX_LITE_CODEX_BIN) return CODEX_LITE_CODEX_BIN;
   if (POSIX) return 'codex';
   const dirs = (process.env.PATH ?? '').split(delimiter).map((d) => d.replace(/^"(.*)"$/, '$1')).filter(Boolean);
   const exe = dirs.map((d) => join(d, 'codex.exe')).find((p) => existsSync(p));
   if (exe) return exe;
-  if (dirs.some((d) => existsSync(join(d, 'codex.cmd')))) {
-    refuse('only the npm install of Codex (codex.cmd) is on PATH, and npm installs of Codex are not supported on Windows; ' +
-      'install the standalone Codex for Windows, which puts codex.exe on PATH');
+  const dir = dirs.find((d) => existsSync(join(d, 'codex.cmd')));
+  if (!dir) refuse('neither codex.exe nor the npm codex.cmd was found on PATH; install Codex');
+  const launcher = join(dir, 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
+  if (!existsSync(launcher)) {
+    refuse(`the codex.cmd in ${dir} is not an npm install of Codex (no ${launcher}); pnpm, bun and other installers are not ` +
+      'supported; install Codex with npm install -g @openai/codex, or the standalone Codex for Windows');
   }
-  return refuse('codex.exe was not found on PATH; install the standalone Codex for Windows');
+  const target = NPM_WIN32[process.arch];
+  if (!target) refuse(`the npm install of Codex has no Windows binary for ${process.arch}`);
+  // Only a platform package that cannot be resolved falls back to the package's own vendor directory, as in the launcher.
+  const script = realpathSync(launcher);
+  let vendor;
+  try { vendor = join(dirname(createRequire(script).resolve(`${target[0]}/package.json`)), 'vendor'); } catch {
+    vendor = join(dirname(dirname(script)), 'vendor');
+  }
+  const bin = join(vendor, target[1], 'bin', 'codex.exe');
+  if (!existsSync(bin)) refuse(`the npm install of Codex in ${dir} has no ${bin}; reinstall it with npm install -g @openai/codex`);
+  return bin;
 }
 
 // The file is deleted on every path: a leftover blocks the next Write with an error that names nothing.

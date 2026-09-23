@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 - 2026-09-23
+
+- On Windows, the npm global install of Codex (`npm install -g @openai/codex`) now works.
+  Before, the plugin refused to run when only its `codex.cmd` was on `PATH`. The plugin
+  runs the `codex.exe` inside the npm package directly, so it still starts Codex without a
+  shell. A `codex.exe` on `PATH` is still used first. Installs made with pnpm, bun or
+  other package managers are refused with a message that says so.
+
 ## 0.1.0 - 2026-09-23
 
 First release.
