@@ -60,7 +60,17 @@ if (readme !== null && plugin && market) {
   }
 }
 
-// 4. No file names a docs/*.md file listed in .git/info/exclude, or cites a numbered entry of one ("<name> 12").
+// 4. Only do and setup are hidden from the model; ask and review must stay visible so a plain-words request can reach them.
+const hidden = { ask: false, review: false, do: true, setup: true };
+for (const [name, want] of Object.entries(hidden)) {
+  const s = read(`plugins/codex-lite/commands/${name}.md`);
+  if (s === null) continue;
+  const front = s.split(/\r?\n---\r?\n/)[0];
+  const has = /^disable-model-invocation:\s*true\s*$/m.test(front);
+  if (has !== want) fail(`plugins/codex-lite/commands/${name}.md: disable-model-invocation must be ${want ? "set" : "absent"}`);
+}
+
+// 5. No file names a docs/*.md file listed in .git/info/exclude, or cites a numbered entry of one ("<name> 12").
 // A fresh clone's exclude file lists none, so the check runs only in a working copy that has such files.
 const excludes = join(root, ".git", "info", "exclude");
 const stems = existsSync(excludes)
