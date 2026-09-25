@@ -97,7 +97,10 @@ result looks wrong, run `/codex-lite:setup`.
   `"elevated"` the same run worked.
 - `do` has no network. It cannot install packages, fetch dependencies or call an API.
 - `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
-  fails and `HEAD` stays where it was. Commit the result yourself.
+  fails and `HEAD` stays where it was. Commit the result yourself. The exception is a
+  repository under the system temporary directory, which the sandbox leaves writable: there
+  a commit succeeds, and the footer's `HEAD` line shows it. Seen on macOS with a repository
+  under `/tmp`.
 - `ask` and `do` run on Codex's default model, because your Codex config is not read. There is
   no model flag for them; only `review` takes `--model`.
 - Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
