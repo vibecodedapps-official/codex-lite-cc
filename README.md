@@ -98,9 +98,14 @@ result looks wrong, run `/codex-lite:setup`.
 - `do` has no network. It cannot install packages, fetch dependencies or call an API.
 - `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
   fails and `HEAD` stays where it was. Commit the result yourself. The exception is a
-  repository under the system temporary directory, which the sandbox leaves writable: there
-  a commit succeeds, and the footer's `HEAD` line shows it. Seen on macOS with a repository
-  under `/tmp`.
+  repository under the system temporary directory on macOS, which the sandbox leaves
+  writable: there a commit succeeds, and the footer's `HEAD` line shows it. Seen with a
+  repository under `/tmp`. On Windows the same commit was denied in a repository under
+  `%TEMP%`.
+- The first sandbox call in a new Codex home, one with no `.sandbox-bin` directory yet, took
+  about 30 s on Windows while Codex set up its sandbox state, once within the probe's 30 s
+  limit and once past it. If `setup` or `do` reports that the positive control did not
+  finish in time, run it again.
 - `ask` and `do` run on Codex's default model, because your Codex config is not read. There is
   no model flag for them; only `review` takes `--model`.
 - Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
@@ -152,20 +157,22 @@ sessions from other agents; use that.
 In default permission mode, expect two prompts every time `ask`, `review` or `do` runs: one to
 read the request file and one to write it. The file is in the plugin's data directory, which is
 under `~/.claude`, and Claude Code treats files there as sensitive. When Claude invokes `ask`
-or `review` from a plain-words request, a prompt to run the command comes first; this was seen
-on Claude Code 2.1.280 in default mode, and a `Skill` allow rule would remove it. The Edit
-allow rule `setup` prints for the data directory does not remove the Write prompt; this was
-checked on Claude Code 2.1.280. To stop the Write prompt for the rest of a session, choose the prompt's
+or `review` from a plain-words request, a prompt to run the command comes first, and the Bash
+call is prompted as well, because the command file's pre-approval does not apply to a command
+Claude invoked; both were seen on Claude Code 2.1.280 in default mode. A `Skill` allow rule
+removes the first, and the Bash allow rule `setup` prints removes the second. The Edit allow
+rule `setup` prints for the data directory does not remove the Write prompt; this was checked
+on Claude Code 2.1.280. To stop the Write prompt for the rest of a session, choose the prompt's
 option to allow Claude to edit files in its `~/.claude` folder.
 
-Each command file lists its own script call in `allowed-tools`, which pre-approves it, so the
-Bash call is not prompted. `/codex-lite:setup` prints allow rules you can add to your settings
-and adds none itself. It prints them as JSON strings, ready to paste into the
-`permissions.allow` array. The Bash rule names the installed version's path, so it must be
-updated after each release; until then Claude asks again. It has no `*` in the path, because
-Claude Code's `*` would also match another plugin's directory or a path through `..`. On
-Windows its path mixes `\` and `/`, because that is how the command files write the command
-the rule must match.
+Each command file lists its own script call in `allowed-tools`, which pre-approves it when you
+type the command, so that Bash call is not prompted. `/codex-lite:setup` prints allow rules
+you can add to your settings and adds none itself. It prints them as JSON strings, ready to
+paste into the `permissions.allow` array. The Bash rule names the installed version's path, so
+it must be updated after each release; until then Claude asks again. It has no `*` in the
+path, because Claude Code's `*` would also match another plugin's directory or a path through
+`..`. On Windows its path uses forward slashes (`C:/Users/...`), because that is how Claude
+Code writes the plugin root into the command the rule must match.
 
 ## Development
 

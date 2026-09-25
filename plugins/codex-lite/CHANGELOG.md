@@ -8,8 +8,13 @@
   or nothing at all. Their descriptions now name those phrases. This is new: until now every
   Codex run started with a typed command, and now a `review` or `ask` can start from Claude's
   own reading of a request. In default mode a prompt to run the command still comes first,
-  then the Read and Write prompts for the request file. `do` and `setup` stay hidden and run
-  only when typed.
+  then the Read and Write prompts for the request file, then a prompt for the Bash call,
+  which the command file pre-approves only when you type the command; the Bash allow rule
+  `setup` prints removes that last prompt. `do` and `setup` stay hidden and run only when
+  typed.
+- On Windows, the Bash allow rule `setup` prints now writes the plugin root with forward
+  slashes. Before, it had backslashes, and Claude Code writes the root with forward slashes
+  into the command the rule must match, so the pasted rule never pre-approved anything.
 
 ## 0.2.1 - 2026-09-23
 
