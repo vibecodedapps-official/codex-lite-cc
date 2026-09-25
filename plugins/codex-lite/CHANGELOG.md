@@ -11,6 +11,15 @@
   it.
 - The sandbox probe no longer says the host cannot sandbox when the positive control fails.
 - `setup` prints the allow rules as JSON strings, ready to paste into `permissions.allow`.
+  The Bash rule names the installed version's exact path, so update it after each release;
+  until then Claude asks again. A `*` in the path would also match another plugin's
+  directory or a path through `..`.
+- `setup` returns its output in a code block. Before, Claude Code's Markdown dropped the
+  backslashes from the printed Bash rule, so on Windows it was not valid JSON.
+- The Windows sandbox mode is read correctly when it is set in an inline table whose other
+  values contain a brace or comma, and when the `windows` key is single-quoted. Before, `do`
+  refused on Windows as if the mode were not set, and a mode written inside another string
+  value was taken as the setting.
 
 ## 0.2.0 - 2026-09-23
 
