@@ -1,6 +1,6 @@
 {
   "name": "codex-lite",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Hand a task to the Codex CLI, run it once, and print what it said.",
   "license": "Apache-2.0",
   "repository": "https://github.com/vibecodedapps-official/codex-lite-cc"

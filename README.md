@@ -51,6 +51,11 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
 | `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
 
+`ask` and `review` are visible to Claude, so a request in plain words such as "dispatch Codex
+to review this" or "ask Codex whether ..." invokes them. The request is then what Claude
+passes: a question for `ask`, flags for `review`. `do` and `setup` are hidden from Claude and
+run only when you type the command.
+
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
 there is nothing to review. `ask` and `do` take no flags: everything after the command is the
@@ -108,11 +113,11 @@ result looks wrong, run `/codex-lite:setup`.
 - Your request reaches Codex through two model steps: Claude writes it to a file, then runs
   the script, which sends the file to Codex. Delivery is verbatim on a best-effort basis; a
   very long paste could be altered and nothing detects it.
-- `disable-model-invocation` stops Claude from invoking a command, not from repeating its
-  steps. Once a command has run in a session, Claude can write the request file and run the
-  script itself when asked in plain words. The command file's pre-approval does not apply to
-  that Bash call, so in default permission mode Claude Code asks you first. Other permission
-  modes were not tested.
+- `do` and `setup` set `disable-model-invocation`, which stops Claude from invoking them, not
+  from repeating their steps. Once a command has run in a session, Claude can write the
+  request file and run the script itself when asked in plain words. The command file's
+  pre-approval does not apply to that Bash call, so in default permission mode Claude Code
+  asks you first. Other permission modes were not tested.
 
 Three Codex behaviours this plugin works around:
 
@@ -143,9 +148,11 @@ sessions from other agents; use that.
 
 In default permission mode, expect two prompts every time `ask`, `review` or `do` runs: one to
 read the request file and one to write it. The file is in the plugin's data directory, which is
-under `~/.claude`, and Claude Code treats files there as sensitive. The Edit allow rule
-`setup` prints for the data directory does not remove the Write prompt; this was checked on
-Claude Code 2.1.280. To stop the Write prompt for the rest of a session, choose the prompt's
+under `~/.claude`, and Claude Code treats files there as sensitive. When Claude invokes `ask`
+or `review` from a plain-words request, a prompt to run the command comes first; this was seen
+on Claude Code 2.1.280 in default mode, and a `Skill` allow rule would remove it. The Edit
+allow rule `setup` prints for the data directory does not remove the Write prompt; this was
+checked on Claude Code 2.1.280. To stop the Write prompt for the rest of a session, choose the prompt's
 option to allow Claude to edit files in its `~/.claude` folder.
 
 Each command file lists its own script call in `allowed-tools`, which pre-approves it, so the
