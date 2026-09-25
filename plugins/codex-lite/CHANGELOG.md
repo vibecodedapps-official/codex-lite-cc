@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - 2026-09-25
+
+- `ask` and `review` no longer set `disable-model-invocation`, so Claude can see them and
+  invoke them when asked in plain words, such as "dispatch Codex to review this". Before,
+  every command was hidden from Claude, and a plain-words request ran the Codex CLI directly
+  or nothing at all. Their descriptions now name those phrases. This is new: until now every
+  Codex run started with a typed command, and now a `review` or `ask` can start from Claude's
+  own reading of a request. In default mode a prompt to run the command still comes first,
+  then the Read and Write prompts for the request file. `do` and `setup` stay hidden and run
+  only when typed.
+
 ## 0.2.1 - 2026-09-23
 
 - On Windows, Codex's sandbox denies every write and every command unless its Windows
