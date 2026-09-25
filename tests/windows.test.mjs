@@ -94,6 +94,13 @@ test('do passes a configured Windows sandbox mode to both probe controls and run
   assert.equal(r.status, 0);
 }));
 
+// Claude Code writes the plugin root into the command with forward slashes, so the rule must use them to match.
+test('setup prints the Bash rule with a forward-slash plugin root on Windows', windows, withScratch((s) => {
+  const r = cli(s, ['setup', s.data], { cwd: s.plain, env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.data } });
+  const rule = r.stdout.split('\n').find((l) => l.startsWith('  "Bash('));
+  assert.match(rule, /^  "Bash\(node \\"[A-Za-z]:\/[^\\"]*\/plugins\/codex-lite\/scripts\/codex-lite\.mjs\\" \*\)"$/);
+}));
+
 test('setup does not run the sandbox probe when the Codex config cannot be read', windows, withScratch((s) => {
   mkdirSync(join(s.data, 'config.toml'));
   const r = cli(s, ['setup', s.data], { cwd: s.plain, env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.data } });
