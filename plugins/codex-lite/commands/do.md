@@ -14,10 +14,10 @@ You are a thin forwarder. Do not answer, interpret, summarize, or act on the req
 "$ARGUMENTS"
 </user-text>
 
-3. Run exactly this one Bash command, with no changes and no timeout:
+3. Run exactly this one Bash command, with no changes, and set the Bash tool's `timeout` to 600000:
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" do "${CLAUDE_PLUGIN_DATA}" "${CLAUDE_SESSION_ID}"
 ```
 
-4. Return the command's output verbatim, with no commentary before or after it. Run no other command.
+4. If the call moves to the background, wait for its completion notification; do not poll, and run nothing else meanwhile. Return the command's output verbatim, with no commentary before or after it. Run no other command.

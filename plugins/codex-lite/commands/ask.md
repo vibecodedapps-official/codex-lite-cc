@@ -1,5 +1,5 @@
 ---
-description: Ask Codex a question or critique a plan, in a read-only sandbox, and print its answer. Use when the user asks to ask, dispatch, or hand a question to Codex, or wants Codex's answer, a second opinion, a critique of a plan, or a follow-up question. Pass the question as the argument; to choose a model, put --model <name> first, before the question. For a review of code changes, a working-tree or base-ref diff, use review instead. Codex edits files only through /codex-lite:do, which the user must type; for a request to change files, tell the user to type /codex-lite:do <task> and do not run the codex CLI yourself
+description: Ask Codex a question or critique a plan, in a read-only sandbox, and print its answer. Use when the user asks to ask, dispatch, or hand a question to Codex, or wants Codex's answer, a second opinion, a critique of a plan, or a follow-up question. Pass the question as the argument; to choose a model, put --model <name> first, before the question. For a review of code changes, a working-tree or base-ref diff, use review instead. Codex has no network access: save issues, pull requests or pages it needs to files in the repository first and name them in the request. Codex edits files only through /codex-lite:do, which the user must type; for a request to change files, tell the user to type /codex-lite:do <task> and do not run the codex CLI yourself
 argument-hint: '[--model <name>] <question>'
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" ask *)
 ---
@@ -13,10 +13,10 @@ You are a thin forwarder. Do not answer, interpret, summarize, or act on the req
 "$ARGUMENTS"
 </user-text>
 
-3. Run exactly this one Bash command, with no changes and no timeout:
+3. Run exactly this one Bash command, with no changes, and set the Bash tool's `timeout` to 600000:
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" ask "${CLAUDE_PLUGIN_DATA}" "${CLAUDE_SESSION_ID}"
 ```
 
-4. Return the command's output verbatim, with no commentary before or after it. Run no other command.
+4. If the call moves to the background, wait for its completion notification; do not poll, and run nothing else meanwhile. Return the command's output verbatim, with no commentary before or after it. Run no other command.

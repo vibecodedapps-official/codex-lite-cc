@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 - 2026-09-26
+
+- `ask` and `review` run from the top of the repository, whatever directory the shell is in.
+  Before, they ran from the shell's current directory, so a shell left in a subdirectory
+  changed where Codex ran, and a relative path in the question could point at the wrong
+  file. `do` still runs from the shell's directory, which bounds where it can write.
+- `ask` and `review` print `network: none in the read-only sandbox`, and their descriptions
+  say Codex cannot fetch issues, pull requests or pages; `ask` says to save them to files
+  first. Before, a `gh issue view`
+  inside Codex failed, and Codex could fall back to older copies it found in the repository.
+- The command files set the Bash tool's timeout to ten minutes and say to wait for the
+  background notification. Before, they said to run with no timeout, which the Bash tool
+  cannot do: it used its two-minute default.
+
 ## 0.4.0 - 2026-09-26
 
 - A `UserPromptSubmit` hook adds a routing note to Claude's context when a prompt mentions

@@ -104,11 +104,18 @@ function siblings(s) {
   return join(s.repo, 'a');
 }
 
-test('review --uncommitted from a subdirectory sees a change in a sibling directory', spawning, withScratch((s) => {
+test('review --uncommitted from a subdirectory runs from the top and sees a change in a sibling directory', spawning, withScratch((s) => {
   const r = run(s, 'review', { request: '', cwd: siblings(s) });
   assert.equal(r.status, 0, r.stdout);
   assert.deepEqual(calls(s), [[...REVIEW, '--uncommitted']]);
-  assert.equal(r.stdout.split('\n')[1], `cwd: ${s.repo}/a`);
+  assert.deepEqual(r.stdout.split('\n').slice(1, 3),
+    [`cwd: ${s.repo}`, 'network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages']);
+}));
+
+test('ask from a subdirectory runs from the top of the repository', spawning, withScratch((s) => {
+  const r = run(s, 'ask', { request: 'q', cwd: siblings(s) });
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(r.stdout.split('\n')[1], `cwd: ${s.repo}`);
 }));
 
 test('do: the probe passes, the rows match, and the footer states the tree after the run', spawning, withScratch((s) => {

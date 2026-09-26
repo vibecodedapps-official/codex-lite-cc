@@ -68,9 +68,12 @@ so a `--model` later in the question is plain text. `ask` refuses a missing mode
 that starts with `-`. `do` takes no flags: everything after the command is the request.
 
 Each result starts with `requested: codex ...`, the exact command that ran, and the working
-directory. `do` also prints `HEAD` before and after the run and the working tree state after
-it (`git status --porcelain --untracked-files=all --ignored`, cut at fifty lines). It states
-what is there, not what changed; reading it is up to you.
+directory. `ask` and `review` run from the top of the repository, whatever directory the shell
+is in; `do` runs from the shell's directory, which bounds where it can write. `ask` and
+`review` also print a line saying the sandbox has no network. `do` also prints `HEAD` before
+and after the run and the working tree state after it
+(`git status --porcelain --untracked-files=all --ignored`, cut at fifty lines). It states what
+is there, not what changed; reading it is up to you.
 
 ## The sandbox probe
 
@@ -102,6 +105,10 @@ result looks wrong, run `/codex-lite:setup`.
   from the Microsoft Store: every command failed with "CreateProcessAsUserW failed". With
   `"elevated"` the same run worked.
 - `do` has no network. It cannot install packages, fetch dependencies or call an API.
+- `ask` and `review` have no network either, so Codex cannot read an issue, a pull request or a
+  web page. Save it to a file in the repository first, such as with
+  `gh issue view 12 > tmp/issue-12.md`, and name the file in an `ask` question. Use an ignored
+  path, or `review --uncommitted` reviews the file as a change.
 - `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
   fails and `HEAD` stays where it was. Commit the result yourself. The exception is a
   repository under the system temporary directory, which the sandbox leaves writable: there
@@ -111,10 +118,12 @@ result looks wrong, run `/codex-lite:setup`.
   Codex config is not read. `do` has no model flag.
 - Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
   same files.
-- A run is stopped after sixty minutes. Claude Code moves a Bash call that passes two minutes
-  to the background, so a long run finishes there and its result arrives as a task
-  notification. If you set `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, Claude Code ends the call
-  at its own timeout instead, so no run can pass ten minutes.
+- A run is stopped after sixty minutes. The command files ask for the Bash tool's longest
+  timeout, ten minutes. With the two-minute default, Claude Code moved a longer call to the
+  background, where the run finished and its result arrived as a task notification; that it
+  does the same at ten minutes is expected but not yet confirmed. If you set
+  `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, Claude Code ends the call at its timeout instead,
+  so no run can pass ten minutes.
 - When Codex exits, anything it left running in the background is stopped, on macOS and
   Linux. On Windows, only Codex itself is stopped at the timeout, and its child processes may
   keep running.
@@ -146,8 +155,8 @@ codex exec resume <thread id> --json --ignore-user-config -c 'approval_policy="n
 
 It always requests `read-only`, even after `do`, because a pasted line runs without any of the
 plugin's checks, in whatever directory you are in. To continue a write run, change
-`read-only` to `workspace-write`, and paste it from the same directory. On Windows the line
-also carries the `-c 'windows.sandbox="<value>"'` the run used.
+`read-only` to `workspace-write`, and paste it from the directory the `do` result's `cwd:` line
+names. On Windows the line also carries the `-c 'windows.sandbox="<value>"'` the run used.
 
 Moving a Claude Code session into Codex is out of scope. Codex has its own importer for
 sessions from other agents; use that.
