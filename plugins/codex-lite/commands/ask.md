@@ -1,6 +1,6 @@
 ---
-description: Ask Codex a question in a read-only sandbox and print its answer. Use when the user asks to ask, dispatch, or hand a question to Codex, or wants Codex's answer to a question. Pass the question as the argument; for a review of changes use review instead. Codex edits files only through /codex-lite:do, which the user must type; for a request to change files, tell the user to type /codex-lite:do <task> and do not run the codex CLI yourself
-argument-hint: '<question>'
+description: Ask Codex a question or critique a plan, in a read-only sandbox, and print its answer. Use when the user asks to ask, dispatch, or hand a question to Codex, or wants Codex's answer, a second opinion, a critique of a plan, or a follow-up question. Pass the question as the argument; to choose a model, put --model <name> first, before the question. For a review of code changes, a working-tree or base-ref diff, use review instead. Codex edits files only through /codex-lite:do, which the user must type; for a request to change files, tell the user to type /codex-lite:do <task> and do not run the codex CLI yourself
+argument-hint: '[--model <name>] <question>'
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" ask *)
 ---
 

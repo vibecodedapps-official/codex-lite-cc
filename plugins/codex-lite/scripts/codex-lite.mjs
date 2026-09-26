@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Entry: node codex-lite.mjs <review|ask|do> <dataDir> <sessionId>, or setup <dataDir>. Prints one result, exits 0 or 1.
+// Or node codex-lite.mjs hook, the UserPromptSubmit hook: reads the event on stdin, prints a routing note or nothing, exits 0.
 // The data directory arrives as an argument: inside the Bash tool the environment can carry another plugin's value.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { NPM_WIN32, WINDOWS_SANDBOXES, buildArgv, decideProbe, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId,
+import { NPM_WIN32, WINDOWS_SANDBOXES, buildArgv, decideProbe, parseAskArgs, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId,
   windowsSandboxSetting } from './codex.mjs';
 
 const started = Date.now();
@@ -229,11 +230,13 @@ async function main() {
   // Before any filesystem access: the id is joined into a path that is then deleted.
   if (!validateRequestId(id)) refuse('the session id is missing or malformed, so no request file was opened');
   const text = takeRequest(dataDir, id);
-  if (command !== 'review' && !text.trim()) refuse('the request is empty; nothing was sent to Codex');
+  let args = {}, argv;
+  try { args = command === 'review' ? parseReviewArgs(text) : command === 'ask' ? parseAskArgs(text) : {}; } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
+  const input = command === 'ask' ? args.question : text;
+  if (command !== 'review' && !input.trim()) refuse('the request is empty; nothing was sent to Codex');
   const win = windowsSandbox();
   if (command === 'do' && win.problem) refuse(`do was not run: ${win.problem}`);
-  let args, argv;
-  try { args = command === 'review' ? parseReviewArgs(text) : {}; argv = buildArgv(command, { ...args, windowsSandbox: win.value }); } catch (e) { refuse(`review arguments refused: ${e.message}`); }
+  try { argv = buildArgv(command, { ...args, windowsSandbox: win.value }); } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
   const codex = resolveCodex();
   const cwd = process.cwd();
   const top = await git(['rev-parse', '--show-toplevel'], cwd);
@@ -246,7 +249,7 @@ async function main() {
     before = await head(cwd);
   }
   const reader = readStream();
-  const r = await run(codex, argv, { ms: TURN_MS, cwd, input: command === 'review' ? undefined : text, onStdout: (b) => reader.write(b) });
+  const r = await run(codex, argv, { ms: TURN_MS, cwd, input: command === 'review' ? undefined : input, onStdout: (b) => reader.write(b) });
   Object.assign(r, reader.end());
   const why = failures(r);
   out.push(requestedLine(argv), `cwd: ${cwd}`);
@@ -321,7 +324,24 @@ async function setup(dataDir) {
   return ok;
 }
 
-main().then((ok) => { process.exitCode = ok ? 0 : 1; }, (e) => {
+const ROUTING = 'Use codex-lite for Codex requests: ask for questions, plan critiques, and second opinions; review only for working-tree or ' +
+  'base-ref diffs. Put an explicit model choice first as --model <name>. For file changes, direct the user to /codex-lite:do <task>; for ' +
+  'setup checks, /codex-lite:setup. Do not invoke Codex directly.';
+
+// Plain stdout from a UserPromptSubmit hook becomes context for Claude. A typed /codex-lite: command already routes itself.
+// Missing or malformed input prints nothing: a hook must never block or fail a prompt.
+async function hook() {
+  let prompt;
+  try {
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    prompt = JSON.parse(Buffer.concat(chunks).toString('utf8')).prompt;
+  } catch { return; }
+  if (typeof prompt === 'string' && /codex/i.test(prompt) && !prompt.trim().startsWith('/codex-lite:')) process.stdout.write(`${ROUTING}\n`);
+}
+
+if (process.argv[2] === 'hook') hook().catch((e) => process.stderr.write(`codex-lite: hook error: ${e?.stack ?? e}\n`));
+else main().then((ok) => { process.exitCode = ok ? 0 : 1; }, (e) => {
   out.push(e instanceof Refusal ? `codex-lite: ${e.message}` : `codex-lite: unexpected error: ${e?.stack ?? e}`);
   process.exitCode = 1;
 }).finally(() => process.stdout.write(`${out.join('\n')}\n`));

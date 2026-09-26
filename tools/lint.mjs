@@ -70,7 +70,17 @@ for (const [name, want] of Object.entries(hidden)) {
   if (has !== want) fail(`plugins/codex-lite/commands/${name}.md: disable-model-invocation must be ${want ? "set" : "absent"}`);
 }
 
-// 5. No file names a docs/*.md file listed in .git/info/exclude, or cites a numbered entry of one ("<name> 12").
+// 5. The plugin's one hook: UserPromptSubmit, run in exec form as node <plugin root>/scripts/codex-lite.mjs hook.
+const hooks = json("plugins/codex-lite/hooks/hooks.json");
+if (hooks) {
+  const want = { type: "command", command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs", "hook"] };
+  const got = hooks.hooks?.UserPromptSubmit?.flatMap((g) => g.hooks ?? []);
+  if (Object.keys(hooks.hooks ?? {}).join() !== "UserPromptSubmit" || got?.length !== 1 || JSON.stringify(got[0]) !== JSON.stringify(want)) {
+    fail(`plugins/codex-lite/hooks/hooks.json must declare exactly one UserPromptSubmit hook: ${JSON.stringify(want)}`);
+  }
+}
+
+// 6. No file names a docs/*.md file listed in .git/info/exclude, or cites a numbered entry of one ("<name> 12").
 // A fresh clone's exclude file lists none, so the check runs only in a working copy that has such files.
 const excludes = join(root, ".git", "info", "exclude");
 const stems = existsSync(excludes)

@@ -34,7 +34,8 @@ export function buildArgv(command, options = {}) {
       ...(options.base === undefined ? ['--uncommitted'] : ['--base', plain('--base', options.base)])];
     if (options.model !== undefined) argv.push('--model', plain('--model', options.model));
   } else if (command === 'ask' || command === 'do') {
-    argv = ['exec', ...turnPrefix(command === 'ask' ? 'read-only' : 'workspace-write', options.windowsSandbox), '-'];
+    argv = ['exec', ...turnPrefix(command === 'ask' ? 'read-only' : 'workspace-write', options.windowsSandbox),
+      ...(command === 'ask' && options.model !== undefined ? ['--model', plain('--model', options.model)] : []), '-'];
   } else if (command === 'version') argv = ['--version'];
   else if (command === 'login') argv = ['login', 'status'];
   else if (command === 'sandbox') {
@@ -188,4 +189,12 @@ export function parseReviewArgs(text) {
   const { values } = parseArgs({ args, options: { base: { type: 'string' }, model: { type: 'string' } }, strict: true, allowPositionals: false });
   for (const [name, v] of Object.entries(values)) plain(`--${name}`, v);
   return { base: values.base, model: values.model };
+}
+
+// Only a leading --model is an option: ask's text is free, so a --model later on is part of the question. The question is
+// the rest after the one character that ends the name, kept verbatim.
+export function parseAskArgs(text) {
+  const m = /^\s*--model(?:=(\S*)|\s+(\S*)|$)/.exec(text);
+  if (!m) return { model: undefined, question: text };
+  return { model: plain('--model', m[1] ?? m[2] ?? ''), question: text.slice(m[0].length + 1) };
 }

@@ -1,7 +1,7 @@
 # codex-lite-cc
 
 A small Claude Code plugin that hands a task to the Codex CLI, runs it once, and prints what
-it said. Four commands, one entry script, no daemon, no hooks, no background jobs of its own.
+it said. Four commands, one entry script, one prompt hook, no daemon, no background jobs of its own.
 
 ## Install
 
@@ -46,7 +46,7 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 
 | Command | Runs | Sandbox |
 | --- | --- | --- |
-| `/codex-lite:ask <question>` | `codex exec <flags> -`, the question on stdin | `read-only` |
+| `/codex-lite:ask [--model <name>] <question>` | `codex exec <flags> -`, plus `--model <name>` if given, the question on stdin | `read-only` |
 | `/codex-lite:review [--base <ref>] [--model <name>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>`, plus `--model <name>` if given | `read-only` |
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
 | `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
@@ -54,13 +54,18 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 `ask` and `review` are visible to Claude, so a request in plain words such as "dispatch Codex
 to review this" or "ask Codex whether ..." invokes them. The request is then what Claude
 passes: a question for `ask`, flags for `review`. In auto mode this runs with no approvals.
+`ask` is for questions, plan critiques, second opinions and follow-ups. `review` is only for
+code changes: the uncommitted working tree, or the diff against a base ref. A plan written in
+the conversation is not a diff, so "review this plan with Codex" goes to `ask`.
 `do` and `setup` are hidden from Claude and run only when you type the command. Asked in plain
 words to have Codex change files, Claude tells you to type `/codex-lite:do <task>`.
 
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
-there is nothing to review. `ask` and `do` take no flags: everything after the command is the
-request.
+there is nothing to review. `ask` takes one optional flag, `--model <name>` or
+`--model=<name>`, and only at the very start; everything after the model name is the question,
+so a `--model` later in the question is plain text. `ask` refuses a missing model name, or one
+that starts with `-`. `do` takes no flags: everything after the command is the request.
 
 Each result starts with `requested: codex ...`, the exact command that ran, and the working
 directory. `do` also prints `HEAD` before and after the run and the working tree state after
@@ -102,8 +107,8 @@ result looks wrong, run `/codex-lite:setup`.
   repository under the system temporary directory, which the sandbox leaves writable: there
   a commit succeeds, and the footer's `HEAD` line shows it. Seen on macOS with a repository
   under `/tmp`.
-- `ask` and `do` run on Codex's default model, because your Codex config is not read. There is
-  no model flag for them; only `review` takes `--model`.
+- `do`, and `ask` or `review` without `--model`, run on Codex's default model, because your
+  Codex config is not read. `do` has no model flag.
 - Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
   same files.
 - A run is stopped after sixty minutes. Claude Code moves a Bash call that passes two minutes
@@ -147,6 +152,16 @@ also carries the `-c 'windows.sandbox="<value>"'` the run used.
 Moving a Claude Code session into Codex is out of scope. Codex has its own importer for
 sessions from other agents; use that.
 
+## Hooks
+
+The plugin adds one `UserPromptSubmit` hook. When a prompt you send mentions Codex, in any
+case, the hook adds a short routing note to Claude's context: use `ask` for questions and plan
+critiques, `review` only for diffs, put a model choice first as `--model <name>`, send file
+changes to `/codex-lite:do`, and do not run Codex directly. A prompt that starts with
+`/codex-lite:` gets no note, because the command already routes itself. A prompt that does not
+mention Codex gets nothing. The note is guidance: Claude usually follows it, but it does not
+stop Claude from running Codex some other way.
+
 ## Permissions
 
 In auto mode, `ask` and `review` run with no approvals, whether you type the command or ask in
@@ -164,6 +179,21 @@ so update it after each release. It has no `*` in the path, because Claude Code'
 also match another plugin's directory or a path through `..`. On Windows the path uses
 forward slashes (`C:/Users/...`), because that is how Claude Code writes the plugin root into
 the command.
+
+Optionally, to stop Claude from running the Codex CLI directly through Bash, add a deny rule
+to your Claude Code settings:
+
+```json
+{
+  "permissions": {
+    "deny": ["Bash(codex *)"]
+  }
+}
+```
+
+It blocks ordinary direct calls such as `codex exec ...` and leaves the plugin's `node` command
+alone. It does not cover every way to start Codex: an absolute path to the executable, or
+`npx @openai/codex`, still gets through. `setup` does not print this rule.
 
 ## Development
 
