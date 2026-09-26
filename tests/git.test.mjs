@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DO, RESUME, SANDBOX, THREAD, calls, cli, git, probeLeftovers, requestLeft, run, spawning, stdin, withScratch } from './fixtures/harness.mjs';
+import { DO, RESUME, SANDBOX, THREAD, calls, cli, cwds, git, probeLeftovers, requestLeft, run, spawning, stdin, withScratch } from './fixtures/harness.mjs';
 
 const REVIEW = ['exec', 'review', '--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"'];
 
@@ -108,6 +108,7 @@ test('review --uncommitted from a subdirectory runs from the top and sees a chan
   const r = run(s, 'review', { request: '', cwd: siblings(s) });
   assert.equal(r.status, 0, r.stdout);
   assert.deepEqual(calls(s), [[...REVIEW, '--uncommitted']]);
+  assert.deepEqual(cwds(s), [s.repo]);
   assert.deepEqual(r.stdout.split('\n').slice(1, 3),
     [`cwd: ${s.repo}`, 'network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages']);
 }));
@@ -115,6 +116,7 @@ test('review --uncommitted from a subdirectory runs from the top and sees a chan
 test('ask from a subdirectory runs from the top of the repository', spawning, withScratch((s) => {
   const r = run(s, 'ask', { request: 'q', cwd: siblings(s) });
   assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(cwds(s), [s.repo]);
   assert.equal(r.stdout.split('\n')[1], `cwd: ${s.repo}`);
 }));
 
@@ -144,6 +146,7 @@ test('do from a subdirectory names it as cwd, probes under it, and lists the who
   const r = run(s, 'do', { request: 'go', cwd: sub, env: { FAKE_CODEX: 'commits' } });
   const after = git(s.repo, 'rev-parse', '--short', 'HEAD').trim();
   assert.equal(calls(s)[0].at(-1).startsWith(`${s.repo}/a/.codex-lite-probe-`), true);
+  assert.deepEqual(cwds(s), [sub, sub, sub]);
   assert.notEqual(before, after);
   assert.equal(r.stdout, 'requested: codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="workspace-write" -\n' +
     `cwd: ${s.repo}/a\nsandbox: workspace-write proven on this host before the run; the system temp directory stays writable\n\nfake answer\n\n` +
