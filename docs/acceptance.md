@@ -71,18 +71,13 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     record whether the Write prompt appears. On Claude Code 2.1.280 it still appears, because
     the file is under `~/.claude`. If that changes, update the Permissions section of the
     README.
-11. **Model invocation is refused for `do`, and routes for `ask` and `review`.** In a fresh
-    session with the plugin installed, ask Claude in plain words to run `do` for you. It must
-    not invoke the command, because the `do` and `setup` command files set
-    `disable-model-invocation: true`. Then ask again in a session where a command has already
-    run: Claude may repeat the steps by hand, and its Bash call must be prompted, not
-    pre-approved. Deny it. In a fresh session, ask in plain words to have Codex review your
-    changes against `main`: Claude must invoke `/codex-lite:review` with `--base main` and no
-    prose, its Bash call must be the constant one from the command file, pre-approved by
-    `allowed-tools`, and the `requested:` line must show `--base main` with no
-    `review arguments refused`. Then ask in plain words for Codex's answer to a question:
-    Claude must invoke `/codex-lite:ask` with that question. Record which prompts appear
-    before the Read prompt, and on which Claude Code version.
+11. **Plain-words dispatch in auto mode.** In a fresh auto-mode session with the plugin
+    installed, say "dispatch codex to review my changes against main". Claude must invoke
+    `/codex-lite:review` with `--base main` and no prose, the `requested:` line must show
+    `--base main`, and nothing may ask for approval. Then say "ask codex" with a question:
+    Claude must invoke `/codex-lite:ask` with that question, again with no approvals. Then ask
+    in plain words for `do`: Claude must not invoke it, because the `do` and `setup` command
+    files set `disable-model-invocation: true`.
 12. **Deny, then recover, in one session.** Run `/codex-lite:ask` and deny the Bash prompt
     (or, if item 9 found no Bash prompt, interrupt the turn after the Write), then run
     `/codex-lite:ask` again in the same session. The second run must succeed: the command

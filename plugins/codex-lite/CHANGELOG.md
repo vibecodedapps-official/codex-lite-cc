@@ -7,9 +7,9 @@
   every command was hidden from Claude, and a plain-words request ran the Codex CLI directly
   or nothing at all. Their descriptions now name those phrases. This is new: until now every
   Codex run started with a typed command, and now a `review` or `ask` can start from Claude's
-  own reading of a request. In default mode a prompt to run the command still comes first,
-  then the Read and Write prompts for the request file. `do` and `setup` stay hidden and run
-  only when typed.
+  own reading of a request. In auto mode it runs with no approvals. In default mode Claude
+  Code asks before running the command, before writing the request file, and before the
+  script call. `do` and `setup` stay hidden and run only when typed.
 - On Windows, the Bash allow rule `setup` prints now writes the plugin path with forward
   slashes. Before, its backslashes never matched the command Claude Code runs, so the rule
   did not stop the prompt.

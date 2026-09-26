@@ -53,8 +53,8 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 
 `ask` and `review` are visible to Claude, so a request in plain words such as "dispatch Codex
 to review this" or "ask Codex whether ..." invokes them. The request is then what Claude
-passes: a question for `ask`, flags for `review`. `do` and `setup` are hidden from Claude and
-run only when you type the command.
+passes: a question for `ask`, flags for `review`. In auto mode this runs with no approvals.
+`do` and `setup` are hidden from Claude and run only when you type the command.
 
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
@@ -118,9 +118,8 @@ result looks wrong, run `/codex-lite:setup`.
   very long paste could be altered and nothing detects it.
 - `do` and `setup` set `disable-model-invocation`, which stops Claude from invoking them, not
   from repeating their steps. Once a command has run in a session, Claude can write the
-  request file and run the script itself when asked in plain words. The command file's
-  pre-approval does not apply to that Bash call, so in default permission mode Claude Code
-  asks you first. Other permission modes were not tested.
+  request file and run the script itself when asked in plain words. In default permission
+  mode Claude Code asks you before that Bash call.
 
 Three Codex behaviours this plugin works around:
 
@@ -149,23 +148,21 @@ sessions from other agents; use that.
 
 ## Permissions
 
-In default permission mode, expect two prompts every time `ask`, `review` or `do` runs: one to
-read the request file and one to write it. The file is in the plugin's data directory, which is
-under `~/.claude`, and Claude Code treats files there as sensitive. When Claude invokes `ask`
-or `review` from a plain-words request, a prompt to run the command comes first; this was seen
-on Claude Code 2.1.280 in default mode, and a `Skill` allow rule would remove it. The Edit
-allow rule `setup` prints for the data directory does not remove the Write prompt; this was
-checked on Claude Code 2.1.280. To stop the Write prompt for the rest of a session, choose the prompt's
-option to allow Claude to edit files in its `~/.claude` folder.
+In auto mode, `ask` and `review` run with no approvals, whether you type the command or ask in
+plain words. This was seen on 2026-09-26 on Claude Code 2.1.280 in headless auto mode, for
+"dispatch codex to review my changes against main" and "ask codex what math.mjs exports".
 
-Each command file lists its own script call in `allowed-tools`, which pre-approves it, so the
-Bash call is not prompted. `/codex-lite:setup` prints allow rules you can add to your settings
-and adds none itself. It prints them as JSON strings, ready to paste into the
-`permissions.allow` array. The Bash rule names the installed version's path, so it must be
-updated after each release; until then Claude asks again. It has no `*` in the path, because
-Claude Code's `*` would also match another plugin's directory or a path through `..`. On
-Windows its path uses forward slashes (`C:/Users/...`), because that is how Claude Code writes
-the plugin root into the command the rule must match.
+In default mode, Claude Code asks before each step it does not trust: running a command Claude
+invoked on its own, writing the request file (it is under `~/.claude`, which Claude Code
+treats as sensitive), and running the script when Claude invoked the command. When you type
+the command, the script call is pre-approved by the command file.
+
+`/codex-lite:setup` prints allow rules for default mode as JSON strings, ready to paste into
+`permissions.allow`; it adds none itself. The Bash rule names the installed version's path,
+so update it after each release. It has no `*` in the path, because Claude Code's `*` would
+also match another plugin's directory or a path through `..`. On Windows the path uses
+forward slashes (`C:/Users/...`), because that is how Claude Code writes the plugin root into
+the command.
 
 ## Development
 
