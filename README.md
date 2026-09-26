@@ -164,8 +164,8 @@ and adds none itself. It prints them as JSON strings, ready to paste into the
 `permissions.allow` array. The Bash rule names the installed version's path, so it must be
 updated after each release; until then Claude asks again. It has no `*` in the path, because
 Claude Code's `*` would also match another plugin's directory or a path through `..`. On
-Windows its path mixes `\` and `/`, because that is how the command files write the command
-the rule must match.
+Windows its path uses forward slashes (`C:/Users/...`), because that is how Claude Code writes
+the plugin root into the command the rule must match.
 
 ## Development
 
