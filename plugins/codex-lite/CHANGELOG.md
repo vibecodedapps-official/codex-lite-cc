@@ -10,6 +10,9 @@
   own reading of a request. In default mode a prompt to run the command still comes first,
   then the Read and Write prompts for the request file. `do` and `setup` stay hidden and run
   only when typed.
+- On Windows, the Bash allow rule `setup` prints now writes the plugin path with forward
+  slashes. Before, its backslashes never matched the command Claude Code runs, so the rule
+  did not stop the prompt.
 
 ## 0.2.1 - 2026-09-23
 
