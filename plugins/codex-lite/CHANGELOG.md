@@ -7,8 +7,8 @@
   changed where Codex ran, and a relative path in the question could point at the wrong
   file. `do` still runs from the shell's directory, which bounds where it can write.
 - `ask` and `review` print `network: none in the read-only sandbox`, and their descriptions
-  say Codex cannot fetch issues, pull requests or pages; `ask` says to save them to files
-  first. Before, a `gh issue view`
+  say Codex cannot fetch issues, pull requests or pages, and to save them first to a file
+  under an ignored directory, named by its repository-relative path. Before, a `gh issue view`
   inside Codex failed, and Codex could fall back to older copies it found in the repository.
 - The command files set the Bash tool's timeout to ten minutes and say to wait for the
   background notification. Before, they said to run with no timeout, which the Bash tool

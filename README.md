@@ -107,8 +107,9 @@ result looks wrong, run `/codex-lite:setup`.
 - `do` has no network. It cannot install packages, fetch dependencies or call an API.
 - `ask` and `review` have no network either, so Codex cannot read an issue, a pull request or a
   web page. Save it to a file in the repository first, such as with
-  `gh issue view 12 > tmp/issue-12.md`, and name the file in an `ask` question. Use an ignored
-  path, or `review --uncommitted` reviews the file as a change.
+  `gh issue view 12 > tmp/issue-12.md`, and name the file in an `ask` question by its
+  repository-relative path. Use a directory the repository already ignores (check with
+  `git check-ignore`), or `review --uncommitted` reviews the file as a change.
 - `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
   fails and `HEAD` stays where it was. Commit the result yourself. The exception is a
   repository under the system temporary directory, which the sandbox leaves writable: there
