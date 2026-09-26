@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const failures = [];
@@ -75,7 +76,7 @@ const hooks = json("plugins/codex-lite/hooks/hooks.json");
 if (hooks) {
   const want = { type: "command", command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs", "hook"] };
   const got = hooks.hooks?.UserPromptSubmit?.flatMap((g) => g.hooks ?? []);
-  if (Object.keys(hooks.hooks ?? {}).join() !== "UserPromptSubmit" || got?.length !== 1 || JSON.stringify(got[0]) !== JSON.stringify(want)) {
+  if (Object.keys(hooks.hooks ?? {}).join() !== "UserPromptSubmit" || got?.length !== 1 || !isDeepStrictEqual(got[0], want)) {
     fail(`plugins/codex-lite/hooks/hooks.json must declare exactly one UserPromptSubmit hook: ${JSON.stringify(want)}`);
   }
 }
