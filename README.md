@@ -193,7 +193,7 @@ tree loaded as a plugin:
 claude --plugin-dir /path/to/codex-lite-cc/plugins/codex-lite
 ```
 
-`docs/acceptance.md` lists the checks run by hand before each release.
+`docs/acceptance.md` lists the checks that need a live session or the real Codex CLI, and when to run them.
 
 ## License
 

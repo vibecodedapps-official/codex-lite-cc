@@ -1,15 +1,18 @@
 # Acceptance checks
 
 These checks need a live Claude Code session, a real Codex CLI, or both, so the automated
-tests cannot run them. Run the per-release list before every version bump, on macOS and on
-Windows, and add a row to the record at the end in the same pull request.
+tests cannot run them. They are not a release step: a release needs a green CI run, which
+covers macOS, Linux and Windows, a version bump and a changelog entry. Run items 1 to 8 when
+the installed Codex version differs from the one the test suite's fake Codex reproduces, or
+when a change alters how a request reaches Codex, the sandbox flags or the footer, and add a
+row to the record at the end when you do.
 
 Use scratch state throughout: a scratch `CODEX_HOME` holding a copy of your Codex config, a
 scratch git repository, and a scratch `CLAUDE_CONFIG_DIR` seeded with a copy of your real
 permission rules for the permission items. Give scratch repositories an identity per call
 (`git -c user.email=t@example.com -c user.name=t ...`).
 
-## Per release, on each platform
+## When Codex or the transport changes
 
 1. **Transport.** Send `/codex-lite:ask` a request containing a double quote, a backtick, a
    command substitution such as `$(id)`, a backslash, a newline and a leading hyphen, and ask
