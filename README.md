@@ -54,7 +54,8 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 `ask` and `review` are visible to Claude, so a request in plain words such as "dispatch Codex
 to review this" or "ask Codex whether ..." invokes them. The request is then what Claude
 passes: a question for `ask`, flags for `review`. In auto mode this runs with no approvals.
-`do` and `setup` are hidden from Claude and run only when you type the command.
+`do` and `setup` are hidden from Claude and run only when you type the command. Asked in plain
+words to have Codex change files, Claude tells you to type `/codex-lite:do <task>`.
 
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
