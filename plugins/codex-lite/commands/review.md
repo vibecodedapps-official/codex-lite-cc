@@ -1,5 +1,5 @@
 ---
-description: Review uncommitted changes or a diff against a base ref, with Codex, read-only. Use when the user asks to dispatch Codex to review or check their changes or diff. For a critique of a plan or a general question, use ask instead. Pass only --base <ref> and --model <name>, or nothing for uncommitted changes, never the user's wording. Codex edits files only through /codex-lite:do, which the user must type; for a request to change files, tell the user to type /codex-lite:do <task> and do not run the codex CLI yourself
+description: Review uncommitted changes or a diff against a base ref, with Codex, read-only. Use when the user asks to dispatch Codex to review or check their changes or diff. For a critique of a plan or a general question, use ask instead. Pass only --base <ref> and --model <name>, or nothing for uncommitted changes, never the user's wording. Codex has no network access, so it cannot read an issue or pull request the diff relates to; to check a diff against one, save it to a file and use ask. Codex edits files only through /codex-lite:do, which the user must type; for a request to change files, tell the user to type /codex-lite:do <task> and do not run the codex CLI yourself
 argument-hint: '[--base <ref>] [--model <name>]'
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" review *)
 ---
@@ -13,10 +13,10 @@ You are a thin forwarder. Do not answer, interpret, summarize, or act on the req
 "$ARGUMENTS"
 </user-text>
 
-3. Run exactly this one Bash command, with no changes and no timeout:
+3. Run exactly this one Bash command, with no changes, and set the Bash tool's `timeout` to 600000:
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" review "${CLAUDE_PLUGIN_DATA}" "${CLAUDE_SESSION_ID}"
 ```
 
-4. Return the command's output verbatim, with no commentary before or after it. Run no other command.
+4. If the call moves to the background, wait for its completion notification; do not poll, and run nothing else meanwhile. Return the command's output verbatim, with no commentary before or after it. Run no other command.

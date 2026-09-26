@@ -12,7 +12,8 @@ test('ask: the recorded argv and stdin match, and a good run renders the answer'
   assert.deepEqual(calls(s), [ASK]);
   assert.equal(stdin(s), request);
   assert.equal(r.stdout, 'requested: codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="read-only" -\n' +
-    `cwd: ${s.repo}\n\nfake answer\n\nthread ${THREAD}\n${RESUME}\n`);
+    `cwd: ${s.repo}\nnetwork: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages\n\nfake answer\n\n` +
+    `thread ${THREAD}\n${RESUME}\n`);
   assert.equal(r.status, 0);
   assert.equal(requestLeft(s), false);
 }));

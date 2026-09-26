@@ -238,9 +238,11 @@ async function main() {
   if (command === 'do' && win.problem) refuse(`do was not run: ${win.problem}`);
   try { argv = buildArgv(command, { ...args, windowsSandbox: win.value }); } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
   const codex = resolveCodex();
-  const cwd = process.cwd();
-  const top = await git(['rev-parse', '--show-toplevel'], cwd);
+  const here = process.cwd();
+  const top = await git(['rev-parse', '--show-toplevel'], here);
   if (top.code !== 0) refuse(`not inside a git repository, so nothing was run (${top.stderr.trim()})`);
+  // ask and review run from the top, whatever directory the shell was left in; do keeps the shell's, which bounds its writes.
+  const cwd = command === 'do' ? here : join(top.stdout.trim());
   let before;
   if (command === 'review') await reviewChecks(args.base, cwd, top.stdout.trim());
   if (command === 'do') {
@@ -253,6 +255,7 @@ async function main() {
   Object.assign(r, reader.end());
   const why = failures(r);
   out.push(requestedLine(argv), `cwd: ${cwd}`);
+  if (command !== 'do') out.push('network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages');
   if (win.problem) out.push(`codex-lite: warning: ${win.problem}`);
   if (command === 'do') out.push('sandbox: workspace-write proven on this host before the run; the system temp directory stays writable');
   out.push('', ...(why.length ? [`codex-lite: the run failed: ${why.join('; ')}`, ...(r.stderr ? [r.stderr.replace(/\n$/, '')] : [])] : [r.finalMessage]), '');

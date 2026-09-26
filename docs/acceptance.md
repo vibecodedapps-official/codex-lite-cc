@@ -82,12 +82,15 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     (or, if item 9 found no Bash prompt, interrupt the turn after the Write), then run
     `/codex-lite:ask` again in the same session. The second run must succeed: the command
     file tells Claude to read the leftover request file before writing it again.
-13. **A run past two minutes.** Run a `do` or `ask` that takes longer than the Bash tool's
-    two-minute default. Confirm the call moves to the background, the run completes, and the
-    `requested:` line, the tree state, the thread id and the resume line all reach you
-    unaltered through the task notification.
+13. **A run past ten minutes.** Run a `do` or `ask` that takes longer than the ten-minute
+    Bash timeout the command files set. Confirm Claude set that timeout, the call moves to the
+    background at ten minutes rather than two, the run completes, and the `requested:` line,
+    the tree state, the thread id and the resume line all reach you unaltered through the
+    task notification.
 14. **The same long run with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`**, past a short Bash
-    timeout. Record whether the script and Codex's process group are gone afterwards. If
+    timeout. Since 0.5.0 the command files set an explicit timeout, so `BASH_DEFAULT_TIMEOUT_MS`
+    no longer shortens it; cap it with `BASH_MAX_TIMEOUT_MS` instead, and confirm the cap
+    applied. Record whether the script and Codex's process group are gone afterwards. If
     anything survives, the ten-minute cap in the README does not hold for `do`, and a
     surviving `do` run keeps writing with no footer.
 15. **Windows install.** On Windows, run `/codex-lite:setup` and `/codex-lite:ask` twice:
