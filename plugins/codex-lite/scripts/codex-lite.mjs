@@ -255,8 +255,8 @@ async function main() {
   Object.assign(r, reader.end());
   const why = failures(r);
   out.push(requestedLine(argv), `cwd: ${cwd}`);
-  if (command !== 'do') out.push('network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages');
   if (win.problem) out.push(`codex-lite: warning: ${win.problem}`);
+  if (command !== 'do') out.push('network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages');
   if (command === 'do') out.push('sandbox: workspace-write proven on this host before the run; the system temp directory stays writable');
   out.push('', ...(why.length ? [`codex-lite: the run failed: ${why.join('; ')}`, ...(r.stderr ? [r.stderr.replace(/\n$/, '')] : [])] : [r.finalMessage]), '');
   if (command === 'do') {
