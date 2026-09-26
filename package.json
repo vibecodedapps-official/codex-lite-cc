@@ -1,6 +1,6 @@
 {
   "name": "codex-lite-cc",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Claude Code plugin that hands a task to the Codex CLI, runs it once, and prints what it said.",
   "license": "Apache-2.0",

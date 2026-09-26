@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 - 2026-09-26
+
+- A `UserPromptSubmit` hook adds a routing note to Claude's context when a prompt mentions
+  Codex: `ask` for questions, plan critiques and second opinions, `review` only for
+  working-tree or base-ref diffs, a model choice first as `--model <name>`, file changes
+  through `/codex-lite:do`, and no direct Codex runs. Before, a request such as "review this
+  plan with codex" could go to `review`, which reviews a diff, or to the Codex CLI directly.
+  A prompt that starts with `/codex-lite:` gets no note. The note is guidance, not
+  enforcement.
+- `ask` takes an optional leading `--model <name>` or `--model=<name>`, passed to Codex as
+  `--model`. Only the question after it is sent. A `--model` later in the question is
+  question text. Before, `ask` always ran on Codex's default model.
+- The `ask` and `review` descriptions now say which one takes plan critiques and which takes
+  diffs.
+- The README documents an optional `Bash(codex *)` deny rule against direct Codex runs, and
+  what it does not cover.
+
 ## 0.3.0 - 2026-09-25
 
 - `ask` and `review` no longer set `disable-model-invocation`, so Claude can see them and

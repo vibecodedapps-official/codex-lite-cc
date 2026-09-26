@@ -33,11 +33,11 @@ export function scratch() {
   return s;
 }
 
-export function cli(s, argv, { request, env = {}, cwd = s.repo } = {}) {
+export function cli(s, argv, { request, input, env = {}, cwd = s.repo } = {}) {
   if (request !== undefined) writeFileSync(join(s.data, `request-${ID}.txt`), request);
   const t0 = Date.now();
   const r = spawnSync(process.execPath, [SCRIPT, ...argv], {
-    cwd, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 << 20,
+    cwd, input, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 << 20,
     env: { ...process.env, CODEX_LITE_CODEX_BIN: FAKE, CODEX_LITE_PROBE_TARGET: s.target, CODEX_LITE_TIMEOUT_MS: '',
       FAKE_CODEX: '', FAKE_CODEX_ARGV: join(s.root, 'argv.jsonl'), FAKE_CODEX_STDIN: join(s.root, 'stdin'), FAKE_CODEX_PIDS: join(s.root, 'pids'), ...env },
   });

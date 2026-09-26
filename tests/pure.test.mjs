@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  buildArgv, readStream, decideProbe, validateRequestId, requestedLine, resumeLine, parseReviewArgs, PROBE_SCRIPT, windowsSandboxSetting,
+  buildArgv, readStream, decideProbe, validateRequestId, requestedLine, resumeLine, parseAskArgs, parseReviewArgs, PROBE_SCRIPT, windowsSandboxSetting,
 } from '../plugins/codex-lite/scripts/codex.mjs';
 
 const ONE_LINER = 'try{require("fs").writeFileSync(process.argv[1],"x");process.exit(0)}catch(e){' +
@@ -34,6 +34,11 @@ test('review, branch, with a model', () => {
 test('ask', () => {
   assert.deepEqual(buildArgv('ask'), ['exec', '--json', '--ignore-user-config',
     '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', '-']);
+});
+
+test('ask, with a model before the stdin marker', () => {
+  assert.deepEqual(buildArgv('ask', { model: 'gpt-5' }), ['exec', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', '--model', 'gpt-5', '-']);
 });
 
 test('do', () => {
@@ -286,6 +291,32 @@ test('review arguments: --uncommitted is refused', () => {
 test('review arguments: an unknown option or a bare word is refused', () => {
   assert.throws(() => parseReviewArgs('--output x'), /'--output'/);
   assert.throws(() => parseReviewArgs('main'), /'main'/);
+});
+
+test('ask arguments: a plain question is the whole text', () => {
+  assert.deepEqual(parseAskArgs('what does math.mjs export?\n'), { model: undefined, question: 'what does math.mjs export?\n' });
+});
+
+test('ask arguments: a leading --model <name> is split from the question', () => {
+  assert.deepEqual(parseAskArgs('--model gpt-5 critique this plan:\n  1. step'), { model: 'gpt-5', question: 'critique this plan:\n  1. step' });
+});
+
+test('ask arguments: a leading --model=<name> is split from the question', () => {
+  assert.deepEqual(parseAskArgs('--model=astra\nwhy?'), { model: 'astra', question: 'why?' });
+});
+
+test('ask arguments: a --model later in the question is question text', () => {
+  assert.deepEqual(parseAskArgs('what does --model gpt-5 do?'), { model: undefined, question: 'what does --model gpt-5 do?' });
+});
+
+test('ask arguments: a missing or empty model name is refused', () => {
+  for (const text of ['--model', '--model  \n', '--model=', '--model= why?']) {
+    assert.throws(() => parseAskArgs(text), /--model "" is empty or starts with "-"; refused/, text);
+  }
+});
+
+test('ask arguments: a model name starting with a hyphen is refused', () => {
+  assert.throws(() => parseAskArgs('--model --output=x why?'), /--model "--output=x" is empty or starts with "-"; refused/);
 });
 
 const probe = (target) => spawnSync(process.execPath, ['-e', PROBE_SCRIPT, target], { encoding: 'utf8' });

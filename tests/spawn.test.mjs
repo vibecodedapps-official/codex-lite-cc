@@ -17,6 +17,49 @@ test('ask: the recorded argv and stdin match, and a good run renders the answer'
   assert.equal(requestLeft(s), false);
 }));
 
+test('ask with a leading --model passes it to Codex and sends only the question', spawning, withScratch((s) => {
+  const r = run(s, 'ask', { request: '--model gpt-5 critique this plan\n' });
+  assert.deepEqual(calls(s), [[...ASK.slice(0, -1), '--model', 'gpt-5', '-']]);
+  assert.equal(stdin(s), 'critique this plan\n');
+  assert.equal(r.status, 0);
+}));
+
+test('ask with a model and no question is refused before Codex starts', spawning, withScratch((s) => {
+  const r = run(s, 'ask', { request: '--model gpt-5\n' });
+  assert.equal(r.stdout, 'codex-lite: the request is empty; nothing was sent to Codex\n');
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), []);
+}));
+
+const NOTE = 'Use codex-lite for Codex requests: ask for questions, plan critiques, and second opinions; review only for working-tree or ' +
+  'base-ref diffs. Put an explicit model choice first as --model <name>. For file changes, direct the user to /codex-lite:do <task>; for ' +
+  'setup checks, /codex-lite:setup. Do not invoke Codex directly.\n';
+const hook = (s, input) => cli(s, ['hook'], { input });
+
+test('hook: a prompt that mentions Codex, in any case, gets the routing note', withScratch((s) => {
+  for (const prompt of ['review it with codex astra', 'Ask CODEX why']) {
+    const r = hook(s, JSON.stringify({ prompt }));
+    assert.deepEqual([r.stdout, r.status], [NOTE, 0], prompt);
+  }
+}));
+
+test('hook: a prompt that does not mention Codex gets nothing', withScratch((s) => {
+  const r = hook(s, JSON.stringify({ prompt: 'draft a plan' }));
+  assert.deepEqual([r.stdout, r.status], ['', 0]);
+}));
+
+test('hook: a typed /codex-lite: command gets nothing', withScratch((s) => {
+  const r = hook(s, JSON.stringify({ prompt: ' /codex-lite:do Report the current directory; ask codex nothing' }));
+  assert.deepEqual([r.stdout, r.status], ['', 0]);
+}));
+
+test('hook: missing or malformed input prints nothing and exits 0', withScratch((s) => {
+  for (const input of [undefined, '', 'codex', 'null', '{"prompt":42}']) {
+    const r = hook(s, input);
+    assert.deepEqual([r.stdout, r.stderr, r.status], ['', '', 0], String(input));
+  }
+}));
+
 test('the same complete stream followed by exit 1 is a failure that prints Codex stderr', spawning, withScratch((s) => {
   const r = run(s, 'ask', { request: 'q', env: { FAKE_CODEX: 'exit1' } });
   assert.equal(r.status, 1);

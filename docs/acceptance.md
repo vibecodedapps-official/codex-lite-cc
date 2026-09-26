@@ -95,6 +95,13 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     (`npm install -g @openai/codex`). Record the Codex version `setup` reports each time and
     whether `ask` returns an answer.
 
+16. **Routing hook in auto mode.** In an interactive auto-mode session with the plugin
+    installed, send "draft a plan, review it with codex astra, then converge". Claude must
+    invoke `/codex-lite:ask` with `--model astra` first, and must not invoke
+    `/codex-lite:review` or start Codex directly during that scenario. Then type
+    `/codex-lite:do Report the current directory; change no files`, and confirm the hook adds
+    no routing note for it, with `claude --debug hooks` if the transcript does not show it.
+
 ## Record
 
 | Date | Version | Platform | Codex version | Result |
