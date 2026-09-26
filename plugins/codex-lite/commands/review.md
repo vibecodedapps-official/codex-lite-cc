@@ -1,5 +1,5 @@
 ---
-description: Have Codex review uncommitted changes, or the diff against a base ref, read-only. Use when the user asks to dispatch Codex to review or check their changes or diff. Pass only --base <ref> and --model <name>, or nothing for uncommitted changes, never the user's wording
+description: Have Codex review uncommitted changes, or the diff against a base ref, read-only. Use when the user asks to dispatch Codex to review or check their changes or diff. Pass only --base <ref> and --model <name>, or nothing for uncommitted changes, never the user's wording. Codex edits files only through /codex-lite:do, which the user must type; for a request to change files, tell the user to type /codex-lite:do <task> and do not run the codex CLI yourself
 argument-hint: '[--base <ref>] [--model <name>]'
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" review *)
 ---

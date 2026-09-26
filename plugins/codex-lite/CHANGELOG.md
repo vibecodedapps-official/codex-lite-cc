@@ -9,7 +9,9 @@
   Codex run started with a typed command, and now a `review` or `ask` can start from Claude's
   own reading of a request. In auto mode it runs with no approvals. In default mode Claude
   Code asks before running the command, before writing the request file, and before the
-  script call. `do` and `setup` stay hidden and run only when typed.
+  script call. `do` and `setup` stay hidden and run only when typed. Asked in plain words to
+  have Codex change files, Claude now tells you to type `/codex-lite:do <task>`. Before, in
+  auto mode, it ran the Codex CLI with write access itself, without the plugin's checks.
 - On Windows, the Bash allow rule `setup` prints now writes the plugin path with forward
   slashes. Before, its backslashes never matched the command Claude Code runs, so the rule
   did not stop the prompt.
