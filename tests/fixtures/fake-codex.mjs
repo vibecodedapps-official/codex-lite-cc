@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 // Stands in for the Codex CLI in tests. Appends its argv as one JSON line to $FAKE_CODEX_ARGV (a do run calls it three
-// times), writes the stdin it reads to $FAKE_CODEX_STDIN, and appends the pids a test must check to $FAKE_CODEX_PIDS.
+// times), its working directory as one line to $FAKE_CODEX_CWD, writes the stdin it reads to $FAKE_CODEX_STDIN, and
+// appends the pids a test must check to $FAKE_CODEX_PIDS.
 // $FAKE_CODEX picks a behaviour; the default is a good run. The stream shapes are those of codex-cli 0.155.1.
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 const argv = process.argv.slice(2);
-const { FAKE_CODEX_ARGV, FAKE_CODEX_STDIN, FAKE_CODEX_PIDS } = process.env;
+const { FAKE_CODEX_ARGV, FAKE_CODEX_CWD, FAKE_CODEX_STDIN, FAKE_CODEX_PIDS } = process.env;
 const mode = process.env.FAKE_CODEX || 'ok';
 if (FAKE_CODEX_ARGV) appendFileSync(FAKE_CODEX_ARGV, `${JSON.stringify(argv)}\n`);
+if (FAKE_CODEX_CWD) appendFileSync(FAKE_CODEX_CWD, `${process.cwd()}\n`);
 
 const THREAD = '01a0cc8d-ada9-7501-a8e1-f64ad8e79180';
 const pid = (p) => appendFileSync(FAKE_CODEX_PIDS, `${p}\n`);

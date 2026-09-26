@@ -39,12 +39,13 @@ export function cli(s, argv, { request, input, env = {}, cwd = s.repo } = {}) {
   const r = spawnSync(process.execPath, [SCRIPT, ...argv], {
     cwd, input, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 << 20,
     env: { ...process.env, CODEX_LITE_CODEX_BIN: FAKE, CODEX_LITE_PROBE_TARGET: s.target, CODEX_LITE_TIMEOUT_MS: '',
-      FAKE_CODEX: '', FAKE_CODEX_ARGV: join(s.root, 'argv.jsonl'), FAKE_CODEX_STDIN: join(s.root, 'stdin'), FAKE_CODEX_PIDS: join(s.root, 'pids'), ...env },
+      FAKE_CODEX: '', FAKE_CODEX_ARGV: join(s.root, 'argv.jsonl'), FAKE_CODEX_CWD: join(s.root, 'cwd'), FAKE_CODEX_STDIN: join(s.root, 'stdin'), FAKE_CODEX_PIDS: join(s.root, 'pids'), ...env },
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr, ms: Date.now() - t0 };
 }
 export const run = (s, command, options) => cli(s, [command, s.data, ID], options);
 export const calls = (s) => (existsSync(join(s.root, 'argv.jsonl')) ? readFileSync(join(s.root, 'argv.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []);
+export const cwds = (s) => (existsSync(join(s.root, 'cwd')) ? readFileSync(join(s.root, 'cwd'), 'utf8').trim().split('\n') : []);
 export const stdin = (s) => readFileSync(join(s.root, 'stdin'), 'utf8');
 export const pids = (s) => readFileSync(join(s.root, 'pids'), 'utf8').trim().split('\n').map(Number);
 export const requestLeft = (s) => existsSync(join(s.data, `request-${ID}.txt`));
