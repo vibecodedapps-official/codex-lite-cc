@@ -378,8 +378,8 @@ test('a run that starts a thread and then fails leaves a previously saved thread
 
 test('a resumed run that fails leaves the saved thread id unchanged', spawning, withScratch((s) => {
   writeFileSync(threadFile(s), `${THREAD2}\n`);
-  const r = run(s, 'ask', { request: '--resume\nq\n', env: { FAKE_CODEX: 'exit1' } });
-  assert.deepEqual(calls(s), [ASK_RESUME(THREAD2)]);
+  const r = run(s, 'ask', { request: `--resume ${THREAD} q\n`, env: { FAKE_CODEX: 'exit1' } });
+  assert.deepEqual(calls(s), [ASK_RESUME(THREAD)]);
   assert.equal(r.status, 1);
   assert.match(r.stdout, /codex-lite: the run failed: codex exited with status 1\n/);
   assert.equal(savedThread(s), `${THREAD2}\n`);
