@@ -46,7 +46,7 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 
 | Command | Runs | Sandbox |
 | --- | --- | --- |
-| `/codex-lite:ask [--model <name>] [--resume [<thread id>]] <question>` | `codex exec <flags> -`, or `codex exec resume <thread id> <flags> -` with `--resume`, plus `--model <name>` if given, the question on stdin | `read-only` |
+| `/codex-lite:ask [--model <name>] [--resume <thread id>] <question>`, or `--resume` alone on the first line and the question below it | `codex exec <flags> -`, or `codex exec resume <thread id> <flags> -` with `--resume`, plus `--model <name>` if given, the question on stdin | `read-only` |
 | `/codex-lite:review [--base <ref>] [--model <name>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>`, plus `--model <name>` if given | `read-only` |
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
 | `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
@@ -163,7 +163,16 @@ put a bare `--resume` on its own line before the question: that continues the la
 Claude session started, whichever command started it. A bare `--resume` must end its line, or
 come directly before `--model`, because any word after it on the same line is read as the
 thread id instead; a word that is not a valid id (one with a `;` or a `?`, for example) is
-refused before Codex runs.
+refused before Codex runs. For example:
+
+```
+/codex-lite:ask --resume <thread id> What about the second objection?
+```
+
+```
+/codex-lite:ask --resume
+What about the second objection?
+```
 
 After every successful `ask`, `review` or `do`, the plugin saves that run's thread id to
 `thread-<session id>.txt` in the plugin's data directory, next to the request file: one small

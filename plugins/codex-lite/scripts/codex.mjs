@@ -28,8 +28,8 @@ const plain = (name, v) => {
 };
 
 // A Codex thread id, as printed in thread.started and accepted by exec resume: letters, digits and hyphens, and
-// (unlike plain()) never leading with "-", so it cannot be read as an option. Shared by resumeLine, parseAskArgs,
-// buildArgv/check, and (as validThreadId) the saved-thread-file read and save in codex-lite.mjs.
+// (unlike plain()) never leading with "-", so it cannot be read as an option. validThreadId is shared by resumeLine,
+// parseAskArgs, buildArgv/check, and the saved-thread-file read and save in codex-lite.mjs.
 const THREAD_ID = /^[A-Za-z0-9-]+$/;
 export const validThreadId = (v) => typeof v === 'string' && THREAD_ID.test(v) && !v.startsWith('-');
 const checkId = (v) => { if (!validThreadId(v)) throw new Error(`--resume id ${JSON.stringify(v)} is malformed; refused`); return v; };
@@ -139,7 +139,7 @@ export const requestedLine = (argv) => `requested: codex ${argv.join(' ')}`;
 
 // Always read-only: resume takes its sandbox from the resume command, and a pasted line runs with none of do's checks.
 // Quoted for a POSIX shell. An id that would need quoting gets no line.
-export const resumeLine = (threadId, windowsSandbox) => (typeof threadId === 'string' && THREAD_ID.test(threadId)
+export const resumeLine = (threadId, windowsSandbox) => (validThreadId(threadId)
   ? `codex exec resume ${threadId} --json --ignore-user-config -c 'approval_policy="never"' -c 'sandbox_mode="read-only"' ` +
     `${windowsSandbox === undefined ? '' : `-c 'windows.sandbox="${windowsSandbox}"' `}'your follow-up here'`
   : null);

@@ -3,8 +3,8 @@
 // times), its working directory as one line to $FAKE_CODEX_CWD, writes the stdin it reads to $FAKE_CODEX_STDIN, and
 // appends the pids a test must check to $FAKE_CODEX_PIDS.
 // $FAKE_CODEX picks a behaviour; the default is a good run. The stream shapes are those of codex-cli 0.155.1.
-// `exec resume <id> ...` has its own branch: mode resume-unknown reproduces an unknown thread id (stderr, exit 1, no
-// stdin read); any other mode reads stdin and emits a good stream with thread_id set to the resumed id (argv[2]).
+// `exec resume <id> ...` reports the resumed id in thread.started and otherwise behaves as `exec`, so every mode applies;
+// mode resume-unknown reproduces an unknown thread id (stderr, exit 1, no stdin read).
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
@@ -19,7 +19,7 @@ const THREAD = '01a0cc8d-ada9-7501-a8e1-f64ad8e79180';
 const pid = (p) => appendFileSync(FAKE_CODEX_PIDS, `${p}\n`);
 const idle = () => setInterval(() => {}, 1000);
 const lines = (events) => events.map((e) => `${JSON.stringify(e)}\n`).join('');
-const started = { type: 'thread.started', thread_id: THREAD };
+const started = { type: 'thread.started', thread_id: argv[0] === 'exec' && argv[1] === 'resume' ? argv[2] : THREAD };
 const message = { type: 'item.completed', item: { id: 'item_0', type: 'agent_message', text: 'fake answer' } };
 const completed = { type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 1 } };
 const readStdin = (then) => {
@@ -47,14 +47,10 @@ if (argv[0] === '--version') {
     process.exit(42);
   }
   process.exit(spawnSync(command[0], command.slice(1), { stdio: 'inherit' }).status ?? 1);
-} else if (argv[0] === 'exec' && argv[1] === 'resume') {
-  if (mode === 'resume-unknown') {
-    // Reproduces codex-cli exactly: no stdout, stderr only, exit 1, stdin never read.
-    process.stderr.write(`Error: thread/resume: thread/resume failed: no rollout found for thread id ${argv[2]} (code -32600)\n`);
-    process.exitCode = 1;
-  } else {
-    readStdin(() => process.stdout.write(lines([{ type: 'thread.started', thread_id: argv[2] }, message, completed])));
-  }
+} else if (mode === 'resume-unknown') {
+  // Reproduces codex-cli exactly: no stdout, stderr only, exit 1, stdin never read.
+  process.stderr.write(`Error: thread/resume: thread/resume failed: no rollout found for thread id ${argv[2]} (code -32600)\n`);
+  process.exitCode = 1;
 } else if (mode === 'stderr-early') {
   // Exits without reading stdin, the way Codex refuses an untrusted directory.
   process.stderr.write('Not inside a trusted directory and --skip-git-repo-check was not specified.\n');

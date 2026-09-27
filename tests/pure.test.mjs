@@ -247,6 +247,7 @@ test('resume line is read-only and absent without a thread id', () => {
     '-c \'approval_policy="never"\' -c \'sandbox_mode="read-only"\' \'your follow-up here\'');
   assert.equal(resumeLine(null), null);
   assert.equal(resumeLine("x'; id; '"), null);
+  assert.equal(resumeLine('--last'), null);
 });
 
 test('resume line runs as pasted into a POSIX shell', { skip: process.platform === 'win32' && 'no POSIX shell' }, () => {
