@@ -120,9 +120,8 @@ result looks wrong, run `/codex-lite:setup`.
 - Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
   same files.
 - A run is stopped after sixty minutes. The command files ask for the Bash tool's longest
-  timeout, ten minutes. With the two-minute default, Claude Code moved a longer call to the
-  background, where the run finished and its result arrived as a task notification; that it
-  does the same at ten minutes is expected but not yet confirmed. If you set
+  timeout, ten minutes. Claude Code moves a call that passes it to the background, where the
+  run finishes and its result arrives as a task notification. If you set
   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, Claude Code ends the call at its timeout instead,
   so no run can pass ten minutes.
 - When Codex exits, anything it left running in the background is stopped, on macOS and
