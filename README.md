@@ -106,10 +106,15 @@ result looks wrong, run `/codex-lite:setup`.
   `"elevated"` the same run worked.
 - `do` has no network. It cannot install packages, fetch dependencies or call an API.
 - `ask` and `review` have no network either, so Codex cannot read an issue, a pull request or a
-  web page. Save it to a file in the repository first, such as with
-  `gh issue view 12 > tmp/issue-12.md`, and name the file in an `ask` question by its
-  repository-relative path. Use a directory the repository already ignores (check with
-  `git check-ignore`), or `review --uncommitted` reviews the file as a change.
+  web page, and the commands forward a request unchanged without fetching anything. A typed
+  `/codex-lite:ask Evaluate issue #12` sends `#12` to Codex as it is. Fetch it before you run
+  `ask`, and save it under a directory the repository already ignores, so
+  `review --uncommitted` does not review it as a change. Check the directory with
+  `git check-ignore`, then, if `.scratch/` is ignored, run
+  `gh issue view 12 > .scratch/issue-12.md` and name the file in the question by its
+  repository-relative path. With no ignored directory, paste the fetched text into the
+  question instead. When Claude invokes `ask` itself, its description tells Claude to do
+  this first.
 - `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
   fails and `HEAD` stays where it was. Commit the result yourself. The exception is a
   repository under the system temporary directory, which the sandbox leaves writable: there
