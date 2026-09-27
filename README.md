@@ -46,7 +46,7 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 
 | Command | Runs | Sandbox |
 | --- | --- | --- |
-| `/codex-lite:ask [--model <name>] <question>` | `codex exec <flags> -`, plus `--model <name>` if given, the question on stdin | `read-only` |
+| `/codex-lite:ask [--model <name>] [--resume [<thread id>]] <question>` | `codex exec <flags> -`, or `codex exec resume <thread id> <flags> -` with `--resume`, plus `--model <name>` if given, the question on stdin | `read-only` |
 | `/codex-lite:review [--base <ref>] [--model <name>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>`, plus `--model <name>` if given | `read-only` |
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
 | `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
@@ -62,10 +62,16 @@ words to have Codex change files, Claude tells you to type `/codex-lite:do <task
 
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
-there is nothing to review. `ask` takes one optional flag, `--model <name>` or
-`--model=<name>`, and only at the very start; everything after the model name is the question,
-so a `--model` later in the question is plain text. `ask` refuses a missing model name, or one
-that starts with `-`. `do` takes no flags: everything after the command is the request.
+there is nothing to review. `ask` takes two optional leading flags, in either order, each at
+most once: `--model <name>` or `--model=<name>`, and `--resume`. Everything after the last flag
+and its delimiter is the question, so a `--model` or a `--resume` later in the question is plain
+text. `ask` refuses a missing model name, or one that starts with `-`. `--resume` on its own,
+followed by a newline, the end of the text, or another flag, continues the last Codex thread
+this Claude session started; `--resume <thread id>` or `--resume=<thread id>` continues that
+thread instead. A word after `--resume` on the same line is always read as the thread id, not
+as the start of the question, so the bare form needs a line of its own, or `--model` directly
+after it. See "Following up" below for what `--resume` does and how it fails. `do` takes
+no flags: everything after the command is the request.
 
 Each result starts with `requested: codex ...`, the exact command that ran, and the working
 directory. `ask` and `review` run from the top of the repository, whatever directory the shell
@@ -151,7 +157,27 @@ Three Codex behaviours this plugin works around:
 
 ## Following up
 
-When Codex started a thread, the result ends with a resume line you can paste into a
+To continue a Codex thread, run `ask` again with `--resume`. Give the thread id from the
+result's `thread` line, as `--resume <thread id>` or `--resume=<thread id>`, or leave it out and
+put a bare `--resume` on its own line before the question: that continues the last thread this
+Claude session started, whichever command started it. A bare `--resume` must end its line, or
+come directly before `--model`, because any word after it on the same line is read as the
+thread id instead; a word that is not a valid id (one with a `;` or a `?`, for example) is
+refused before Codex runs.
+
+After every successful `ask`, `review` or `do`, the plugin saves that run's thread id to
+`thread-<session id>.txt` in the plugin's data directory, next to the request file: one small
+file per Claude session, replaced each time a run succeeds. A failed run leaves it unchanged.
+A later bare `--resume` in the same session reads that file, so you never have to copy the id
+by hand. Resume always runs `read-only`, even if the thread came from `do`, because it takes
+its sandbox from the command line, not from how the thread started. A bare `--resume` is
+refused before Codex runs when the session has no saved thread id yet. A stale or unknown id,
+saved or typed, is not caught by the plugin; Codex itself refuses it, with its own "no rollout
+found" error. The plugin does not use Codex's own `--last` flag for the bare form, because
+`--last` picks the newest session for the working directory, which can belong to another
+Claude session, not this one.
+
+When Codex started a thread, the result also ends with a resume line you can paste into a
 terminal:
 
 ```
@@ -170,8 +196,9 @@ sessions from other agents; use that.
 
 The plugin adds one `UserPromptSubmit` hook. When a prompt you send mentions Codex, in any
 case, the hook adds a short routing note to Claude's context: use `ask` for questions and plan
-critiques, `review` only for diffs, put a model choice first as `--model <name>`, send file
-changes to `/codex-lite:do`, and do not run Codex directly. A prompt that starts with
+critiques, `review` only for diffs, put a model choice first as `--model <name>`, put `--resume`
+first, on its own line, for a follow-up in the same Codex thread, send file changes to
+`/codex-lite:do`, and do not run Codex directly. A prompt that starts with
 `/codex-lite:` gets no note, because the command already routes itself. A prompt that does not
 mention Codex gets nothing. The note is guidance: Claude usually follows it, but it does not
 stop Claude from running Codex some other way.

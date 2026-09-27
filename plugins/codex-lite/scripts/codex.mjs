@@ -8,7 +8,7 @@ const windowsFlag = (windowsSandbox) => (windowsSandbox === undefined ? [] : ['-
 const turnPrefix = (mode, windowsSandbox) => ['--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', `sandbox_mode="${mode}"`,
   ...windowsFlag(windowsSandbox)];
 const FORBIDDEN = ['--color', '--ephemeral', '--sandbox', '-s', '--skip-git-repo-check', '--ignore-rules', '--full-auto',
-  '--dangerously-bypass-approvals-and-sandbox'];
+  '--dangerously-bypass-approvals-and-sandbox', '--last', '--all'];
 export const WINDOWS_SANDBOXES = ['unelevated', 'elevated'];
 const ALLOWED_OVERRIDES = ['approval_policy="never"', 'sandbox_mode="read-only"', 'sandbox_mode="workspace-write"',
   ...WINDOWS_SANDBOXES.map((m) => `windows.sandbox="${m}"`)];
@@ -27,12 +27,23 @@ const plain = (name, v) => {
   return v;
 };
 
+// A Codex thread id, as printed in thread.started and accepted by exec resume: letters, digits and hyphens, and
+// (unlike plain()) never leading with "-", so it cannot be read as an option. Shared by resumeLine, parseAskArgs,
+// buildArgv/check, and (as validThreadId) the saved-thread-file read and save in codex-lite.mjs.
+const THREAD_ID = /^[A-Za-z0-9-]+$/;
+export const validThreadId = (v) => typeof v === 'string' && THREAD_ID.test(v) && !v.startsWith('-');
+const checkId = (v) => { if (!validThreadId(v)) throw new Error(`--resume id ${JSON.stringify(v)} is malformed; refused`); return v; };
+
 export function buildArgv(command, options = {}) {
   let argv;
   if (command === 'review') {
     argv = ['exec', 'review', ...turnPrefix('read-only', options.windowsSandbox),
       ...(options.base === undefined ? ['--uncommitted'] : ['--base', plain('--base', options.base)])];
     if (options.model !== undefined) argv.push('--model', plain('--model', options.model));
+  } else if (command === 'ask' && options.resume !== undefined) {
+    // Always read-only: resume takes its sandbox from the command line, not from what started the thread.
+    argv = ['exec', 'resume', checkId(options.resume), ...turnPrefix('read-only', options.windowsSandbox),
+      ...(options.model !== undefined ? ['--model', plain('--model', options.model)] : []), '-'];
   } else if (command === 'ask' || command === 'do') {
     argv = ['exec', ...turnPrefix(command === 'ask' ? 'read-only' : 'workspace-write', options.windowsSandbox),
       ...(command === 'ask' && options.model !== undefined ? ['--model', plain('--model', options.model)] : []), '-'];
@@ -62,6 +73,11 @@ function check(command, argv) {
   if (argv[0] === 'sandbox') return;
   if (!opts.includes('--json') || !opts.includes('--ignore-user-config')) fail('needs --json and --ignore-user-config');
   if (argv[1] === 'review' && opts.includes('--uncommitted') === opts.includes('--base')) fail('needs exactly one of --uncommitted and --base');
+  // argv[2] is checked here, explicitly, rather than by the opts/FORBIDDEN scan above, so a malformed or "-"-leading id cannot hide from it.
+  if (argv[1] === 'resume') {
+    if (!validThreadId(argv[2])) fail('resume needs a valid thread id');
+    if (!overrides.includes('sandbox_mode="read-only"')) fail('resume must be read-only');
+  }
   if (argv[1] !== 'review' && argv.at(-1) !== '-') fail('the prompt must come from stdin');
 }
 
@@ -123,7 +139,7 @@ export const requestedLine = (argv) => `requested: codex ${argv.join(' ')}`;
 
 // Always read-only: resume takes its sandbox from the resume command, and a pasted line runs with none of do's checks.
 // Quoted for a POSIX shell. An id that would need quoting gets no line.
-export const resumeLine = (threadId, windowsSandbox) => (typeof threadId === 'string' && /^[A-Za-z0-9-]+$/.test(threadId)
+export const resumeLine = (threadId, windowsSandbox) => (typeof threadId === 'string' && THREAD_ID.test(threadId)
   ? `codex exec resume ${threadId} --json --ignore-user-config -c 'approval_policy="never"' -c 'sandbox_mode="read-only"' ` +
     `${windowsSandbox === undefined ? '' : `-c 'windows.sandbox="${windowsSandbox}"' `}'your follow-up here'`
   : null);
@@ -191,10 +207,49 @@ export function parseReviewArgs(text) {
   return { base: values.base, model: values.model };
 }
 
-// Only a leading --model is an option: ask's text is free, so a --model later on is part of the question. The question is
-// the rest after the one character that ends the name, kept verbatim.
+// Only leading --model and --resume are options, in either order, each at most once: ask's text is free, so either
+// spelling later on is part of the question. Each match consumes its value and the one delimiter after it (space,
+// tab or newline), so the question is exactly what is left, kept verbatim. Whitespace before an option is skipped,
+// so extra spaces or lines between the two options do not turn the second into question text.
+function matchModel(s) {
+  const m = /^\s*--model(?:=(\S*)|\s+(\S*)|$)/.exec(s);
+  return m && { value: plain('--model', m[1] ?? m[2] ?? ''), rest: s.slice(m[0].length + 1) };
+}
+
+// --resume=<id> or --resume <id> (same line): explicit id, checked against THREAD_ID. --resume followed by a
+// newline, end of text, or another option (--resume --model x): bare, resumed id comes from the saved thread file.
+function matchResume(s) {
+  const m = /^\s*--resume(?=[=\s]|$)/.exec(s);
+  if (!m) return null;
+  const rest = s.slice(m[0].length);
+  if (rest[0] === '=') {
+    const v = /^\S*/.exec(rest.slice(1))[0];
+    return { value: checkId(v), rest: s.slice(m[0].length + 1 + v.length + 1) };
+  }
+  // Spaces or tabs, any number of them, then either a (possibly CRLF) newline or end of text: bare.
+  const sp = /^[ \t]*/.exec(rest)[0];
+  const after = rest.slice(sp.length);
+  const nl = /^\r?\n/.exec(after);
+  if (after === '' || nl) return { value: true, rest: s.slice(m[0].length + sp.length + (nl ? nl[0].length : 0)) };
+  const token = /^\S*/.exec(after)[0];
+  if (/^--(?:model|resume)(?:=|$)/.test(token)) return { value: true, rest: s.slice(m[0].length + sp.length) };
+  return { value: checkId(token), rest: s.slice(m[0].length + sp.length + token.length + 1) };
+}
+
 export function parseAskArgs(text) {
-  const m = /^\s*--model(?:=(\S*)|\s+(\S*)|$)/.exec(text);
-  if (!m) return { model: undefined, question: text };
-  return { model: plain('--model', m[1] ?? m[2] ?? ''), question: text.slice(m[0].length + 1) };
+  let model, resume, s = text;
+  for (;;) {
+    const m = matchModel(s);
+    if (m) {
+      if (model !== undefined) throw new Error('--model given more than once; refused');
+      ({ value: model, rest: s } = m); continue;
+    }
+    const r = matchResume(s);
+    if (r) {
+      if (resume !== undefined) throw new Error('--resume given more than once; refused');
+      ({ value: resume, rest: s } = r); continue;
+    }
+    break;
+  }
+  return { model, resume, question: s };
 }
