@@ -41,6 +41,29 @@ test('ask, with a model before the stdin marker', () => {
     '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', '--model', 'gpt-5', '-']);
 });
 
+test('ask, resuming a thread: exec resume <id>, always read-only', () => {
+  assert.deepEqual(buildArgv('ask', { resume: 't-9' }), ['exec', 'resume', 't-9', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', '-']);
+});
+
+test('ask, resuming a thread, with a model', () => {
+  assert.deepEqual(buildArgv('ask', { resume: 't-9', model: 'gpt-5' }), ['exec', 'resume', 't-9', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', '--model', 'gpt-5', '-']);
+});
+
+test('ask, resuming a thread, with a Windows sandbox mode', () => {
+  assert.deepEqual(buildArgv('ask', { resume: 't-9', windowsSandbox: 'elevated' }), ['exec', 'resume', 't-9', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', '-c', 'windows.sandbox="elevated"', '-']);
+});
+
+test('buildArgv refuses a resume id starting with "-", even though it matches the character class', () => {
+  assert.throws(() => buildArgv('ask', { resume: '-x' }), /--resume id "-x" is malformed; refused$/);
+});
+
+test('buildArgv treats a bare resume (true) as malformed: the entry script must resolve it first', () => {
+  assert.throws(() => buildArgv('ask', { resume: true }), /--resume id true is malformed; refused$/);
+});
+
 test('do', () => {
   assert.deepEqual(buildArgv('do'), ['exec', '--json', '--ignore-user-config',
     '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '-']);
@@ -294,19 +317,106 @@ test('review arguments: an unknown option or a bare word is refused', () => {
 });
 
 test('ask arguments: a plain question is the whole text', () => {
-  assert.deepEqual(parseAskArgs('what does math.mjs export?\n'), { model: undefined, question: 'what does math.mjs export?\n' });
+  assert.deepEqual(parseAskArgs('what does math.mjs export?\n'), { model: undefined, resume: undefined, question: 'what does math.mjs export?\n' });
 });
 
 test('ask arguments: a leading --model <name> is split from the question', () => {
-  assert.deepEqual(parseAskArgs('--model gpt-5 critique this plan:\n  1. step'), { model: 'gpt-5', question: 'critique this plan:\n  1. step' });
+  assert.deepEqual(parseAskArgs('--model gpt-5 critique this plan:\n  1. step'),
+    { model: 'gpt-5', resume: undefined, question: 'critique this plan:\n  1. step' });
 });
 
 test('ask arguments: a leading --model=<name> is split from the question', () => {
-  assert.deepEqual(parseAskArgs('--model=astra\nwhy?'), { model: 'astra', question: 'why?' });
+  assert.deepEqual(parseAskArgs('--model=astra\nwhy?'), { model: 'astra', resume: undefined, question: 'why?' });
 });
 
 test('ask arguments: a --model later in the question is question text', () => {
-  assert.deepEqual(parseAskArgs('what does --model gpt-5 do?'), { model: undefined, question: 'what does --model gpt-5 do?' });
+  assert.deepEqual(parseAskArgs('what does --model gpt-5 do?'), { model: undefined, resume: undefined, question: 'what does --model gpt-5 do?' });
+});
+
+// --resume forms, exactly as the interface contract lists them.
+test('ask arguments: --resume then a newline is bare; the question starts on the next line', () => {
+  assert.deepEqual(parseAskArgs('--resume\nq'), { model: undefined, resume: true, question: 'q' });
+});
+
+test('ask arguments: bare --resume consumes only the one newline after it', () => {
+  assert.deepEqual(parseAskArgs('--resume\n\nq'), { model: undefined, resume: true, question: '\nq' });
+});
+
+test('ask arguments: trailing whitespace before the newline still leaves --resume bare', () => {
+  assert.deepEqual(parseAskArgs('--resume \nq'), { model: undefined, resume: true, question: 'q' });
+});
+
+test('ask arguments: a CRLF line ending after bare --resume is consumed whole', () => {
+  assert.deepEqual(parseAskArgs('--resume\r\nq'), { model: undefined, resume: true, question: 'q' });
+});
+
+test('ask arguments: trailing whitespace with nothing after it is still bare', () => {
+  assert.deepEqual(parseAskArgs('--resume '), { model: undefined, resume: true, question: '' });
+});
+
+test('ask arguments: --resume <id> on the same line is an explicit id', () => {
+  assert.deepEqual(parseAskArgs('--resume t-9 q'), { model: undefined, resume: 't-9', question: 'q' });
+});
+
+test('ask arguments: extra spaces before the id are skipped, not read as part of it', () => {
+  assert.deepEqual(parseAskArgs('--resume  t-9 q'), { model: undefined, resume: 't-9', question: 'q' });
+});
+
+test('ask arguments: --resume=<id> is the same as the space form', () => {
+  assert.deepEqual(parseAskArgs('--resume=t-9 q'), { model: undefined, resume: 't-9', question: 'q' });
+});
+
+test('ask arguments: a plain word after --resume is taken as the id, not as question text', () => {
+  assert.deepEqual(parseAskArgs('--resume what about step 3?'), { model: undefined, resume: 'what', question: 'about step 3?' });
+});
+
+test('ask arguments: --resume directly before --model is bare', () => {
+  assert.deepEqual(parseAskArgs('--resume --model x q'), { model: 'x', resume: true, question: 'q' });
+});
+
+test('ask arguments: --model then --resume, in that order, both take effect', () => {
+  assert.deepEqual(parseAskArgs('--model x --resume\nq'), { model: 'x', resume: true, question: 'q' });
+});
+
+test('ask arguments: extra spaces or lines between the options do not turn the second into question text', () => {
+  assert.deepEqual(parseAskArgs('--model gpt-5  --resume\nfollow up'), { model: 'gpt-5', resume: true, question: 'follow up' });
+  assert.deepEqual(parseAskArgs('--resume\n  --model x\nq'), { model: 'x', resume: true, question: 'q' });
+});
+
+test('ask arguments: --resume alone, with nothing after it, is bare with an empty question', () => {
+  assert.deepEqual(parseAskArgs('--resume'), { model: undefined, resume: true, question: '' });
+});
+
+test('ask arguments: --resume later in the question is question text', () => {
+  assert.deepEqual(parseAskArgs('what does --resume do?'), { model: undefined, resume: undefined, question: 'what does --resume do?' });
+});
+
+test('ask arguments: a token that only starts with an option name is an id after --resume, and refused', () => {
+  assert.throws(() => parseAskArgs('--resume --modeler what?'), /--resume id "--modeler" is malformed; refused$/);
+});
+
+test('ask arguments: a malformed --resume id is refused before it becomes a question', () => {
+  assert.throws(() => parseAskArgs('--resume bad;id q'), /--resume id "bad;id" is malformed; refused$/);
+});
+
+test('ask arguments: a --resume id starting with "-" is refused, even though it matches the character class', () => {
+  assert.throws(() => parseAskArgs('--resume -x q'), /--resume id "-x" is malformed; refused$/);
+});
+
+test('ask arguments: --resume= with no id is refused', () => {
+  assert.throws(() => parseAskArgs('--resume='), /--resume id "" is malformed; refused$/);
+});
+
+test('ask arguments: --resume=<malformed id> is refused the same way as the space form', () => {
+  assert.throws(() => parseAskArgs('--resume=bad;id q'), /--resume id "bad;id" is malformed; refused$/);
+});
+
+test('ask arguments: --resume given more than once is refused', () => {
+  assert.throws(() => parseAskArgs('--resume t-1 --resume t-2 q'), /--resume given more than once; refused$/);
+});
+
+test('ask arguments: --model given more than once is refused', () => {
+  assert.throws(() => parseAskArgs('--model a --model b q'), /--model given more than once; refused$/);
 });
 
 test('ask arguments: a missing or empty model name is refused', () => {

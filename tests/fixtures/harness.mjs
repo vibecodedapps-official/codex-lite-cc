@@ -8,11 +8,19 @@ import { fileURLToPath } from 'node:url';
 export const SCRIPT = fileURLToPath(new URL('../../plugins/codex-lite/scripts/codex-lite.mjs', import.meta.url));
 export const FAKE = fileURLToPath(new URL('./fake-codex.mjs', import.meta.url));
 export const ID = '5f0c8a4e-9d1b-4c2a-8e7f-3b6d2a1c0e9f';
+// A second Claude session id, for tests that check two sessions keep separate saved threads.
+export const ID2 = '7b2d9f1a-3c4e-4f5a-9b8c-1d2e3f4a5b6c';
 export const THREAD = '01a0cc8d-ada9-7501-a8e1-f64ad8e79180';
+// A second thread id, distinct from the fake's default THREAD, for the explicit --resume <id> tests.
+export const THREAD2 = '01a0e088-ce0a-7d52-a36f-451471aa9322';
 export const RESUME = `Resume: codex exec resume ${THREAD} --json --ignore-user-config -c 'approval_policy="never"' -c 'sandbox_mode="read-only"' 'your follow-up here'`;
+export const RESUME2 = `Resume: codex exec resume ${THREAD2} --json --ignore-user-config -c 'approval_policy="never"' -c 'sandbox_mode="read-only"' 'your follow-up here'`;
 export const ONE_LINER = 'try{require("fs").writeFileSync(process.argv[1],"x");process.exit(0)}catch(e){' +
   'process.stderr.write(String(e&&e.code));process.exit(e&&(e.code==="EPERM"||e.code==="EACCES")?42:9)}';
 export const ASK = ['exec', '--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"', '-'];
+// The literal exec resume argv, mirroring buildArgv('ask', { resume: id }): resuming is always read-only.
+export const ASK_RESUME = (id, extra = []) => ['exec', 'resume', id, '--json', '--ignore-user-config', '-c', 'approval_policy="never"',
+  '-c', 'sandbox_mode="read-only"', ...extra, '-'];
 export const DO = ['exec', '--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '-'];
 export const SANDBOX = ['sandbox', '-c', 'sandbox_mode="workspace-write"', '-c', 'approval_policy="never"', '--', process.execPath, '-e', ONE_LINER];
 export const spawning = { skip: process.platform === 'win32' && 'a .mjs fake Codex is not an executable image, so it cannot be spawned with shell:false on Windows' };
@@ -49,6 +57,8 @@ export const cwds = (s) => (existsSync(join(s.root, 'cwd')) ? readFileSync(join(
 export const stdin = (s) => readFileSync(join(s.root, 'stdin'), 'utf8');
 export const pids = (s) => readFileSync(join(s.root, 'pids'), 'utf8').trim().split('\n').map(Number);
 export const requestLeft = (s) => existsSync(join(s.data, `request-${ID}.txt`));
+export const threadFile = (s, id = ID) => join(s.data, `thread-${id}.txt`);
+export const savedThread = (s, id = ID) => (existsSync(threadFile(s, id)) ? readFileSync(threadFile(s, id), 'utf8') : undefined);
 export const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 export async function dead(pid) {
   for (let i = 0; i < 20 && alive(pid); i++) await new Promise((r) => setTimeout(r, 100));

@@ -2,9 +2,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { ASK, FAKE, RESUME, SANDBOX, SCRIPT, THREAD, ID, alive, calls, cli, dead, pids, probeLeftovers, requestLeft, run, spawning, stdin, withScratch } from './fixtures/harness.mjs';
+import {
+  ASK, ASK_RESUME, FAKE, ID, ID2, RESUME, RESUME2, SANDBOX, SCRIPT, THREAD, THREAD2,
+  alive, calls, cli, dead, pids, probeLeftovers, requestLeft, run, savedThread, spawning, stdin, threadFile, withScratch,
+} from './fixtures/harness.mjs';
 
 test('ask: the recorded argv and stdin match, and a good run renders the answer', spawning, withScratch((s) => {
   const request = 'say "hi" `x` $(id) \\ back\n--dangerously-leading-hyphen\n';
@@ -33,7 +36,8 @@ test('ask with a model and no question is refused before Codex starts', spawning
 }));
 
 const NOTE = 'Use codex-lite for Codex requests: ask for questions, plan critiques, and second opinions; review only for working-tree or ' +
-  'base-ref diffs. Put an explicit model choice first as --model <name>. For file changes, direct the user to /codex-lite:do <task>; for ' +
+  'base-ref diffs. Put an explicit model choice first as --model <name>. For a follow-up in the same Codex thread, put --resume first, on ' +
+  'its own line, then only the new question. For file changes, direct the user to /codex-lite:do <task>; for ' +
   'setup checks, /codex-lite:setup. Do not invoke Codex directly.\n';
 const hook = (input) => {
   const r = spawnSync(process.execPath, [SCRIPT, 'hook'], { input, encoding: 'utf8', timeout: 10_000 });
@@ -273,5 +277,128 @@ test('a whitespace-only request is refused and deleted', spawning, withScratch((
   assert.equal(r.stdout, 'codex-lite: the request is empty; nothing was sent to Codex\n');
   assert.equal(r.status, 1);
   assert.equal(requestLeft(s), false);
+  assert.deepEqual(calls(s), []);
+}));
+
+// --resume: exec resume argv, the saved-thread file, and the refusals around it.
+
+test('an explicit --resume id builds the literal resume argv, sends only the question, and its thread becomes the saved one',
+  spawning, withScratch((s) => {
+    const r = run(s, 'ask', { request: `--resume ${THREAD2} what about the second objection\n` });
+    assert.deepEqual(calls(s), [ASK_RESUME(THREAD2)]);
+    assert.equal(stdin(s), 'what about the second objection\n');
+    assert.equal(r.stdout, `requested: codex exec resume ${THREAD2} --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="read-only" -\n` +
+      `cwd: ${s.repo}\nnetwork: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages\n\nfake answer\n\n` +
+      `thread ${THREAD2}\n${RESUME2}\n`);
+    assert.equal(r.status, 0);
+    assert.equal(requestLeft(s), false);
+    assert.equal(savedThread(s), `${THREAD2}\n`);
+  }));
+
+test('a bare --resume after a prior successful ask in the same session resumes the saved thread', spawning, withScratch((s) => {
+  const first = run(s, 'ask', { request: 'the first question\n' });
+  assert.equal(first.status, 0, first.stdout);
+  const second = run(s, 'ask', { request: '--resume\nthe follow-up question\n' });
+  assert.equal(second.status, 0, second.stdout);
+  assert.deepEqual(calls(s), [ASK, ASK_RESUME(THREAD)]);
+  assert.equal(stdin(s), 'the follow-up question\n');
+}));
+
+test('a bare --resume with trailing whitespace on its line still resumes the saved thread', spawning, withScratch((s) => {
+  const first = run(s, 'ask', { request: 'the first question\n' });
+  assert.equal(first.status, 0, first.stdout);
+  const second = run(s, 'ask', { request: '--resume \nthe follow-up question\n' });
+  assert.equal(second.status, 0, second.stdout);
+  assert.deepEqual(calls(s), [ASK, ASK_RESUME(THREAD)]);
+  assert.equal(stdin(s), 'the follow-up question\n');
+}));
+
+test('a bare --resume with no saved thread id is refused before Codex starts, and the request file is deleted', spawning, withScratch((s) => {
+  const r = run(s, 'ask', { request: '--resume\nthe follow-up question\n' });
+  assert.equal(r.stdout, 'codex-lite: ask arguments refused: --resume with no id, and no earlier Codex thread is saved for this Claude ' +
+    'session; pass --resume <thread id>\n');
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), []);
+  assert.equal(requestLeft(s), false);
+}));
+
+test('a malformed --resume id is refused before Codex starts', spawning, withScratch((s) => {
+  const r = run(s, 'ask', { request: '--resume bad;id q' });
+  assert.equal(r.stdout, 'codex-lite: ask arguments refused: --resume id "bad;id" is malformed; refused\n');
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), []);
+}));
+
+test('--resume <id> together with --model reaches Codex as both flags, in either order', spawning, withScratch((s) => {
+  const requests = [`--resume ${THREAD2} --model x q\n`, `--model x --resume ${THREAD2} q\n`];
+  for (const request of requests) {
+    const r = run(s, 'ask', { request });
+    assert.equal(r.status, 0, r.stdout);
+  }
+  assert.deepEqual(calls(s), requests.map(() => ASK_RESUME(THREAD2, ['--model', 'x'])));
+}));
+
+test('a bare --resume together with --model reaches Codex as both flags, using the saved thread id', spawning, withScratch((s) => {
+  const seed = run(s, 'ask', { request: 'seed the saved thread\n' });
+  assert.equal(seed.status, 0, seed.stdout);
+  const r = run(s, 'ask', { request: '--model x --resume\nthe follow-up question\n' });
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(calls(s).at(-1), ASK_RESUME(THREAD, ['--model', 'x']));
+}));
+
+test('a successful review saves its thread id', spawning, withScratch((s) => {
+  writeFileSync(join(s.repo, 'tracked.txt'), 'two\n');
+  const r = run(s, 'review', { request: '' });
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(savedThread(s), `${THREAD}\n`);
+}));
+
+test('a successful do saves its thread id', spawning, withScratch((s) => {
+  const r = run(s, 'do', { request: 'go' });
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(savedThread(s), `${THREAD}\n`);
+}));
+
+test('two Claude sessions keep separate saved thread-id files', spawning, withScratch((s) => {
+  const r1 = run(s, 'ask', { request: 'the first session question\n' });
+  assert.equal(r1.status, 0, r1.stdout);
+  writeFileSync(join(s.data, `request-${ID2}.txt`), `--resume ${THREAD2} the second session question\n`);
+  const r2 = cli(s, ['ask', s.data, ID2]);
+  assert.equal(r2.status, 0, r2.stdout);
+  assert.equal(savedThread(s, ID), `${THREAD}\n`);
+  assert.equal(savedThread(s, ID2), `${THREAD2}\n`);
+}));
+
+test('a run that starts a thread and then fails leaves a previously saved thread id unchanged', spawning, withScratch((s) => {
+  writeFileSync(threadFile(s), 'seed-0000000000\n');
+  const r = run(s, 'ask', { request: 'q', env: { FAKE_CODEX: 'exit1' } });
+  assert.equal(r.status, 1);
+  assert.equal(savedThread(s), 'seed-0000000000\n');
+}));
+
+test('a stale saved thread id fails the resume with Codex\'s own error, and leaves the saved id unchanged', spawning, withScratch((s) => {
+  writeFileSync(threadFile(s), 'stale-0000000000\n');
+  const r = run(s, 'ask', { request: '--resume\nq\n', env: { FAKE_CODEX: 'resume-unknown' } });
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), [ASK_RESUME('stale-0000000000')]);
+  assert.match(r.stdout, /(?:^|\n)Error: thread\/resume: thread\/resume failed: no rollout found for thread id stale-0000000000 \(code -32600\)\n/);
+  assert.equal(savedThread(s), 'stale-0000000000\n');
+}));
+
+test('a saved-thread path that is a directory is refused, naming the file, before Codex starts', spawning, withScratch((s) => {
+  const file = threadFile(s);
+  mkdirSync(file);
+  const r = run(s, 'ask', { request: '--resume\nq\n' });
+  assert.equal(r.stdout, `codex-lite: ask arguments refused: could not read the saved thread in ${file}: EISDIR\n`);
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), []);
+}));
+
+test('a saved thread file holding a malformed id is refused, naming the file, before Codex starts', spawning, withScratch((s) => {
+  const file = threadFile(s);
+  writeFileSync(file, 'bad;id\n');
+  const r = run(s, 'ask', { request: '--resume\nq\n' });
+  assert.equal(r.stdout, `codex-lite: ask arguments refused: could not read the saved thread in ${file}: it does not hold a thread id\n`);
+  assert.equal(r.status, 1);
   assert.deepEqual(calls(s), []);
 }));

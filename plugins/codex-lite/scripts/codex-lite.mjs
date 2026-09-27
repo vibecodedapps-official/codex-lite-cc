@@ -3,12 +3,12 @@
 // Or node codex-lite.mjs hook, the UserPromptSubmit hook: reads the event on stdin, prints a routing note or nothing, exits 0.
 // The data directory arrives as an argument: inside the Bash tool the environment can carry another plugin's value.
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { NPM_WIN32, WINDOWS_SANDBOXES, buildArgv, decideProbe, parseAskArgs, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId,
-  windowsSandboxSetting } from './codex.mjs';
+  validThreadId, windowsSandboxSetting } from './codex.mjs';
 
 const started = Date.now();
 // Test-only seams, read once. CODEX_LITE_TIMEOUT_MS replaces both deadlines below.
@@ -25,6 +25,8 @@ class Refusal extends Error {}
 const refuse = (message) => { throw new Refusal(message); };
 const secs = (ms) => `${ms / 1000} s`;
 const out = [];
+// One saved thread id per Claude session, so a bare --resume never picks up another session's thread.
+const threadFile = (dataDir, id) => join(dataDir, `thread-${id}.txt`);
 
 // Every spawn goes through here, and spawn's own timeout option is not used: it signals once and then waits as long
 // as the child lives. On POSIX the child leads its own process group and every signal goes to the group. The wait
@@ -234,6 +236,18 @@ async function main() {
   try { args = command === 'review' ? parseReviewArgs(text) : command === 'ask' ? parseAskArgs(text) : {}; } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
   const input = command === 'ask' ? args.question : text;
   if (command !== 'review' && !input.trim()) refuse('the request is empty; nothing was sent to Codex');
+  if (command === 'ask' && args.resume === true) {
+    const file = threadFile(dataDir, id);
+    let saved;
+    try { saved = readFileSync(file, 'utf8'); } catch (e) {
+      refuse(e.code === 'ENOENT'
+        ? `${command} arguments refused: --resume with no id, and no earlier Codex thread is saved for this Claude session; pass --resume <thread id>`
+        : `${command} arguments refused: could not read the saved thread in ${file}: ${e.code ?? e.message}`);
+    }
+    const trimmed = saved.trim();
+    if (!validThreadId(trimmed)) refuse(`${command} arguments refused: could not read the saved thread in ${file}: it does not hold a thread id`);
+    args.resume = trimmed;
+  }
   const win = windowsSandbox();
   if (command === 'do' && win.problem) refuse(`do was not run: ${win.problem}`);
   try { argv = buildArgv(command, { ...args, windowsSandbox: win.value }); } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
@@ -270,6 +284,12 @@ async function main() {
   if (r.threadId) out.push(`thread ${r.threadId}`);
   const resume = resumeLine(r.threadId, win.value);
   if (resume) out.push(`Resume: ${resume}`);
+  if (why.length === 0 && validThreadId(r.threadId)) {
+    const file = threadFile(dataDir, id);
+    try { writeFileSync(`${file}.tmp`, `${r.threadId}\n`); renameSync(`${file}.tmp`, file); } catch (e) {
+      out.push(`codex-lite: warning: could not save the thread id to ${file}: ${e.message}`);
+    }
+  }
   return why.length === 0;
 }
 
@@ -328,7 +348,8 @@ async function setup(dataDir) {
 }
 
 const ROUTING = 'Use codex-lite for Codex requests: ask for questions, plan critiques, and second opinions; review only for working-tree or ' +
-  'base-ref diffs. Put an explicit model choice first as --model <name>. For file changes, direct the user to /codex-lite:do <task>; for ' +
+  'base-ref diffs. Put an explicit model choice first as --model <name>. For a follow-up in the same Codex thread, put --resume first, on ' +
+  'its own line, then only the new question. For file changes, direct the user to /codex-lite:do <task>; for ' +
   'setup checks, /codex-lite:setup. Do not invoke Codex directly.';
 
 // Plain stdout from a UserPromptSubmit hook becomes context for Claude. A typed /codex-lite: command already routes itself.

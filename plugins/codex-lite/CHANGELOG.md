@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0 - 2026-09-26
+
+- `ask` takes `--resume <thread id>`, `--resume=<thread id>`, or a bare `--resume` on its own
+  line to continue a Codex thread instead of starting a new one. Resume always runs
+  `read-only`, whatever sandbox the original run used, and the follow-up needs only the new
+  question, not the earlier objections restated by hand. The bare form continues the last
+  thread this Claude session started, from `ask`, `review` or `do`: the plugin saves that
+  thread's id, per session, after every successful run, and refuses the bare form before Codex
+  runs when nothing is saved yet. Codex's own `--last` is not used for this, because it picks
+  the newest session for the working directory, which can belong to another Claude session.
+  Before, every `ask` started a new thread, and a multi-round review needed the earlier
+  objections pasted back into each new question.
+- The `UserPromptSubmit` hook's routing note now also tells Claude to put `--resume` first, on
+  its own line, for a follow-up in the same Codex thread. Before, the note said nothing about
+  resuming.
+
 ## 0.5.0 - 2026-09-26
 
 - `ask` and `review` run from the top of the repository, whatever directory the shell is in.
