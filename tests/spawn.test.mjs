@@ -308,6 +308,14 @@ test('a session id carrying a command substitution is refused with nothing opene
   assert.deepEqual(calls(s), []);
 }));
 
+test('an unexpected error before the turn ends with status: failed, not refused', spawning, withScratch((s) => {
+  mkdirSync(join(s.data, `request-${ID}.txt`));
+  const r = run(s, 'ask');
+  assert.match(r.stdout, /^codex-lite: unexpected error: .*\nstatus: failed\n$/s);
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), []);
+}));
+
 test('a relative data directory is refused', spawning, withScratch((s) => {
   const r = cli(s, ['ask', 'data', ID]);
   assert.equal(r.stdout, 'codex-lite: the plugin data directory must be an absolute path, not "data"\nstatus: refused\n');

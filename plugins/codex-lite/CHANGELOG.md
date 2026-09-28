@@ -14,7 +14,8 @@
   `status: timeout` or `status: failed`, after the resume line and after any refusal. The
   word is decided by phase: `refused` before the task turn is attempted, `timeout` or
   `failed` once it is, `ok` only when the run and its reporting completed. A result with no
-  status line was cut off. `setup`, the hook and an unknown command print none. Before, a
+  status line was cut off; an unexpected error in the plugin itself is `failed` in either
+  phase. `setup`, the hook and an unknown command print none. Before, a
   caller had to read the prose to tell a refusal from a timeout from a Codex failure.
 - `ask` and `review` take `--timeout <seconds>` or `--timeout=<seconds>`, a whole number from
   1 to 3600, at most once, which replaces the sixty-minute limit on the Codex turn for that
