@@ -66,7 +66,7 @@ test('setup reports the Windows sandbox mode from $CODEX_HOME/config.toml, or th
 
 test('do refuses before running Codex when the Windows sandbox mode is not set', windows, withScratch((s) => {
   const r = run(s, 'do', { request: 'go', env: { CODEX_LITE_CODEX_BIN: process.execPath, CODEX_HOME: s.plain } });
-  assert.equal(r.stdout, `codex-lite: do was not run: ${unset(join(s.plain, 'config.toml'))}\n`);
+  assert.equal(r.stdout, `codex-lite: do was not run: ${unset(join(s.plain, 'config.toml'))}\nstatus: refused\n`);
   assert.equal(r.status, 1);
 }));
 

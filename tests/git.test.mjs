@@ -9,12 +9,12 @@ import { DO, RESUME, SANDBOX, THREAD, calls, cli, cwds, git, probeLeftovers, req
 const REVIEW = ['exec', 'review', '--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', 'sandbox_mode="read-only"'];
 
 // PATH shims: git logs each call and then runs the real git; id leaves a marker, so a ref run through a shell shows.
-function shims(s) {
+function shims(s, gitFirst = '') {
   const bin = join(s.root, 'bin');
   const realGit = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
   mkdirSync(bin);
   const shim = (name, body) => { writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`); chmodSync(join(bin, name), 0o755); };
-  shim('git', `printf '%s\\n' "$*" >> '${join(s.root, 'git.log')}'\nexec '${realGit}' "$@"`);
+  shim('git', `printf '%s\\n' "$*" >> '${join(s.root, 'git.log')}'\n${gitFirst}exec '${realGit}' "$@"`);
   shim('id', `touch '${join(s.root, 'id-ran')}'`);
   return { PATH: `${bin}:${process.env.PATH}` };
 }
@@ -55,7 +55,7 @@ test('review: the four rows reach Codex with literal argv, and a ref with shell 
 test('review: a value starting with a hyphen is refused before any git process or Codex starts', spawning, withScratch((s) => {
   const env = shims(s);
   const r = run(s, 'review', { request: '--base=--output=x', env });
-  assert.equal(r.stdout, 'codex-lite: review arguments refused: --base "--output=x" is empty or starts with "-"; refused\n');
+  assert.equal(r.stdout, 'codex-lite: review arguments refused: --base "--output=x" is empty or starts with "-"; refused\nstatus: refused\n');
   assert.equal(r.status, 1);
   assert.deepEqual(gitCalls(s), []);
   assert.deepEqual(calls(s), []);
@@ -76,10 +76,10 @@ const refusesReview = (prepare, request, expected) => withScratch((s) => {
 
 test('review --uncommitted in a clean repository is refused; an ignored file is not a change', spawning, refusesReview(
   (s) => writeFileSync(join(s.repo, '.env'), 'SECRET=1\n'), '',
-  'codex-lite: nothing to review: the repository has no uncommitted changes\n'));
+  'codex-lite: nothing to review: the repository has no uncommitted changes\nstatus: refused\n'));
 
 test('review --base with a ref that names no commit is refused', spawning, refusesReview(
-  () => {}, '--base nope', 'codex-lite: base nope does not name a commit in this repository\n'));
+  () => {}, '--base nope', 'codex-lite: base nope does not name a commit in this repository\nstatus: refused\n'));
 
 test('review --base with a branch of unrelated history is refused', spawning, refusesReview(
   (s) => {
@@ -87,11 +87,11 @@ test('review --base with a branch of unrelated history is refused', spawning, re
     git(s.repo, 'commit', '-q', '--allow-empty', '-m', 'unrelated');
     git(s.repo, 'switch', '-q', 'main');
   },
-  '--base unrelated', 'codex-lite: base unrelated and HEAD have no merge base\n'));
+  '--base unrelated', 'codex-lite: base unrelated and HEAD have no merge base\nstatus: refused\n'));
 
 // review --base compares the merge base of the base and HEAD with the working tree, as Codex does.
 const NOTHING = (base) => `codex-lite: nothing to review: no tracked differences between the merge base of ${base} and HEAD and the working tree; ` +
-  'untracked files are not compared, git add them first\n';
+  'untracked files are not compared, git add them first\nstatus: refused\n';
 const reviewsBase = (prepare, base) => withScratch((s) => {
   prepare(s);
   const r = run(s, 'review', { request: `--base ${base}` });
@@ -209,7 +209,7 @@ test('do: the probe passes, the rows match, and the footer states the tree after
   assert.notEqual(before, after);
   assert.equal(r.stdout, 'requested: codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="workspace-write" -\n' +
     `cwd: ${s.repo}\nsandbox: workspace-write proven on this host before the run; the system temp directory stays writable\n\nfake answer\n\n` +
-    `HEAD ${before} before, ${after} after\nworking tree after the run:\n   M tracked.txt\n  !! .env\nthread ${THREAD}\n${RESUME}\n`);
+    `HEAD ${before} before, ${after} after\nworking tree after the run:\n   M tracked.txt\n  !! .env\nthread ${THREAD}\n${RESUME}\nstatus: ok\n`);
   assert.equal(r.status, 0);
   assert.deepEqual(probeLeftovers(s), [false, []]);
 }));
@@ -224,8 +224,17 @@ test('do from a subdirectory names it as cwd, probes under it, and lists the who
   assert.notEqual(before, after);
   assert.equal(r.stdout, 'requested: codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="workspace-write" -\n' +
     `cwd: ${s.repo}/a\nsandbox: workspace-write proven on this host before the run; the system temp directory stays writable\n\nfake answer\n\n` +
-    `HEAD ${before} before, ${after} after\nworking tree after the run:\n   M b/file.txt\n  !! a/.env\nthread ${THREAD}\n${RESUME}\n`);
+    `HEAD ${before} before, ${after} after\nworking tree after the run:\n   M b/file.txt\n  !! a/.env\nthread ${THREAD}\n${RESUME}\nstatus: ok\n`);
   assert.equal(r.status, 0);
+}));
+
+test('do: a good run whose tree footer cannot be read ends with status: failed', spawning, withScratch((s) => {
+  // Only the footer's git status passes --ignored; every other git call reaches the real git.
+  const env = shims(s, `case "$*" in *--ignored*) echo 'fatal: footer broken' >&2; exit 1;; esac\n`);
+  const r = run(s, 'do', { request: 'go', env });
+  assert.equal(calls(s).at(-1)[0], 'exec');
+  assert.match(r.stdout, /\n\nfake answer\n\ncodex-lite: git status after the run failed: fatal: footer broken\nthread \S+\nResume: .*\nstatus: failed\n$/);
+  assert.equal(r.status, 1);
 }));
 
 test('do: the tree listing stops at 50 lines and says how many were omitted', spawning, withScratch((s) => {

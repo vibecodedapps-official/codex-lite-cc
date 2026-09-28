@@ -77,7 +77,17 @@ after it. See "Following up" below for what `--resume` does and how it fails. `d
 no flags: everything after the command is the request.
 
 Each result starts with `requested: codex ...`, the exact command that ran, and the working
-directory. `ask` and `review` run from the top of the repository, whatever directory the shell
+directory, and ends with `status: ...`, one of four words, on a line of its own after
+everything else. `status: refused` means the plugin stopped before attempting the task turn:
+bad arguments, nothing to review, not a repository, a bad or missing request file, or a failed
+`do` probe. `status: timeout` means the turn was attempted and its deadline ended it.
+`status: failed` means the turn was attempted and something else went wrong: Codex could not
+start, exited non-zero, sent no final message or reported an error, or the `do` tree state
+could not be read. `status: ok` means the run and all its reporting completed, not that a
+review found nothing. The exit code is 0 for `ok` and 1 otherwise. A result with no `status:`
+line was cut off, by the Bash tool's timeout or a kill, and is incomplete. The plugin does not
+tell model, login or sandbox failures apart: Codex reports them as prose, which the
+`codex-lite: the run failed:` line carries. `setup` prints no status line. `ask` and `review` run from the top of the repository, whatever directory the shell
 is in; `do` runs from the shell's directory, which bounds where it can write. `ask` and
 `review` also print a line saying the sandbox has no network. `do` also prints `HEAD` before
 and after the run and the working tree state after it
