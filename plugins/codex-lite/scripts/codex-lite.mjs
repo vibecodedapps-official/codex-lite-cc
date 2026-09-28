@@ -352,7 +352,7 @@ const ROUTING = 'Use codex-lite for Codex requests: ask for questions, plan crit
   'its own line, then only the new question. For file changes, direct the user to /codex-lite:do <task>; for ' +
   'setup checks, /codex-lite:setup. Do not invoke Codex directly.';
 
-// Plain stdout from a UserPromptSubmit hook becomes context for Claude. A typed /codex-lite: command already routes itself.
+// Plain stdout from a UserPromptSubmit hook becomes context for Claude. A typed slash command, of any plugin, already routes itself.
 // Missing or malformed input prints nothing: a hook must never block or fail a prompt.
 async function hook() {
   let prompt;
@@ -361,7 +361,7 @@ async function hook() {
     for await (const c of process.stdin) chunks.push(c);
     prompt = JSON.parse(Buffer.concat(chunks).toString('utf8')).prompt;
   } catch { return; }
-  if (typeof prompt === 'string' && /codex/i.test(prompt) && !prompt.trim().startsWith('/codex-lite:')) process.stdout.write(`${ROUTING}\n`);
+  if (typeof prompt === 'string' && /codex/i.test(prompt) && !prompt.trim().startsWith('/')) process.stdout.write(`${ROUTING}\n`);
 }
 
 if (process.argv[2] === 'hook') hook().catch((e) => process.stderr.write(`codex-lite: hook error: ${e?.stack ?? e}\n`));

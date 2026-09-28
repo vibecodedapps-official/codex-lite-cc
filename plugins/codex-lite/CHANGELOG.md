@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 - 2026-09-28
+
+- The `UserPromptSubmit` hook adds no routing note to a prompt that starts with any slash
+  command, whichever plugin it belongs to. Before, only a prompt starting with `/codex-lite:`
+  was skipped, so a command such as `/other:run --no-codex` got the note in its context.
+
 ## 0.6.0 - 2026-09-26
 
 - `ask` takes `--resume <thread id>`, `--resume=<thread id>`, or a bare `--resume` on its own
