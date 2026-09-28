@@ -25,6 +25,9 @@ class Refusal extends Error {}
 const refuse = (message) => { throw new Refusal(message); };
 const secs = (ms) => `${ms / 1000} s`;
 const out = [];
+// The last line of every ask, review and do result, decided by phase: refused before the task turn is attempted, failed
+// or timeout once it is, ok only when the run and all its reporting completed. Unset for setup, hook and unknown commands.
+let status;
 // One saved thread id per Claude session, so a bare --resume never picks up another session's thread.
 const threadFile = (dataDir, id) => join(dataDir, `thread-${id}.txt`);
 
@@ -231,6 +234,7 @@ function failures(r) {
 async function main() {
   const [command, dataDir, id] = process.argv.slice(2);
   if (!['review', 'ask', 'do', 'setup'].includes(command)) refuse(`unknown command ${JSON.stringify(command)}; expected review, ask, do or setup`);
+  if (command !== 'setup') status = 'refused';
   if (typeof dataDir !== 'string' || !isAbsolute(dataDir)) refuse(`the plugin data directory must be an absolute path, not ${JSON.stringify(dataDir)}`);
   if (command === 'setup') return setup(dataDir);
   // Before any filesystem access: the id is joined into a path that is then deleted.
@@ -269,9 +273,11 @@ async function main() {
     before = await head(cwd);
   }
   const reader = readStream();
+  status = 'failed';
   const r = await run(codex, argv, { ms: TURN_MS, cwd, input: command === 'review' ? undefined : input, onStdout: (b) => reader.write(b) });
   Object.assign(r, reader.end());
   const why = failures(r);
+  if (r.timedOut) status = 'timeout';
   out.push(requestedLine(argv), `cwd: ${cwd}`);
   if (win.problem) out.push(`codex-lite: warning: ${win.problem}`);
   if (command !== 'do') out.push('network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages');
@@ -294,6 +300,7 @@ async function main() {
       out.push(`codex-lite: warning: could not save the thread id to ${file}: ${e.message}`);
     }
   }
+  if (why.length === 0) status = 'ok';
   return why.length === 0;
 }
 
@@ -372,4 +379,4 @@ if (process.argv[2] === 'hook') hook().catch((e) => process.stderr.write(`codex-
 else main().then((ok) => { process.exitCode = ok ? 0 : 1; }, (e) => {
   out.push(e instanceof Refusal ? `codex-lite: ${e.message}` : `codex-lite: unexpected error: ${e?.stack ?? e}`);
   process.exitCode = 1;
-}).finally(() => process.stdout.write(`${out.join('\n')}\n`));
+}).finally(() => process.stdout.write(`${[...out, ...(status ? [`status: ${status}`] : [])].join('\n')}\n`));

@@ -10,6 +10,12 @@
   to `HEAD` with a modified tracked file or a staged new file is now reviewed, and the refusal
   says untracked files are not compared. Before, the plugin compared the base with `HEAD` only
   and refused, as "nothing to review", changes Codex would have reviewed.
+- Every `ask`, `review` and `do` result ends with one line, `status: ok`, `status: refused`,
+  `status: timeout` or `status: failed`, after the resume line and after any refusal. The
+  word is decided by phase: `refused` before the task turn is attempted, `timeout` or
+  `failed` once it is, `ok` only when the run and its reporting completed. A result with no
+  status line was cut off. `setup`, the hook and an unknown command print none. Before, a
+  caller had to read the prose to tell a refusal from a timeout from a Codex failure.
 
 ## 0.6.0 - 2026-09-26
 
