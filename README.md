@@ -97,8 +97,9 @@ could not be read. `status: ok` means the run and all its reporting completed, n
 review found nothing. The exit code is 0 for `ok` and 1 otherwise. A result with no `status:`
 line was cut off, by the Bash tool's timeout or a kill, and is incomplete. The plugin does not
 tell model, login or sandbox failures apart: Codex reports them as prose, which the
-`codex-lite: the run failed:` line carries. `setup` prints no status line. `ask` and `review` run from the top of the repository, whatever directory the shell
-is in; `do` runs from the shell's directory, which bounds where it can write. `ask` and
+`codex-lite: the run failed:` line carries. `setup` prints no status line.
+
+`ask` and `review` run from the top of the repository, whatever directory the shell is in; `do` runs from the shell's directory, which bounds where it can write. `ask` and
 `review` also print a line saying the sandbox has no network. `do` also prints `HEAD` before
 and after the run and the working tree state after it
 (`git status --porcelain --untracked-files=all --ignored`, cut at fifty lines). It states what
