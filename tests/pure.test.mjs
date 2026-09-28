@@ -493,6 +493,12 @@ test('review arguments: --base or --model given more than once is refused, in ei
   assert.throws(() => parseReviewArgs('--model=x --model y'), /^Error: --model given more than once; refused$/);
 });
 
+test('ask arguments: a CRLF line ending after --model or --timeout is consumed whole', () => {
+  assert.deepEqual(parseAskArgs('--model x\r\nq'), { model: 'x', resume: undefined, timeout: undefined, question: 'q' });
+  assert.deepEqual(parseAskArgs('--timeout 5\r\nq'), { model: undefined, resume: undefined, timeout: 5, question: 'q' });
+  assert.deepEqual(parseAskArgs('--timeout=5\r\n\nq'), { model: undefined, resume: undefined, timeout: 5, question: '\nq' });
+});
+
 test('review arguments: --timeout given more than once is refused, in either spelling', () => {
   for (const text of ['--timeout 5 --timeout 6', '--timeout=5 --timeout 6', '--timeout 5 --timeout=5']) {
     assert.throws(() => parseReviewArgs(text), /^Error: --timeout given more than once; refused$/, text);
