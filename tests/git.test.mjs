@@ -89,8 +89,68 @@ test('review --base with a branch of unrelated history is refused', spawning, re
   },
   '--base unrelated', 'codex-lite: base unrelated and HEAD have no merge base\n'));
 
-test('review --base with no commits between the base and HEAD is refused', spawning, refusesReview(
-  (s) => git(s.repo, 'branch', 'same'), '--base same', 'codex-lite: nothing to review: no differences between same and HEAD\n'));
+// review --base compares the merge base of the base and HEAD with the working tree, as Codex does.
+const NOTHING = (base) => `codex-lite: nothing to review: no tracked differences between the merge base of ${base} and HEAD and the working tree; ` +
+  'untracked files are not compared, git add them first\n';
+const reviewsBase = (prepare, base) => withScratch((s) => {
+  prepare(s);
+  const r = run(s, 'review', { request: `--base ${base}` });
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(calls(s), [[...REVIEW, '--base', base]]);
+});
+// A second branch whose only commit changes tracked.txt, left checked out on main.
+const ahead = (s) => {
+  git(s.repo, 'switch', '-q', '-c', 'ahead');
+  writeFileSync(join(s.repo, 'tracked.txt'), 'base only\n');
+  git(s.repo, 'commit', '-q', '-am', 'base only');
+  git(s.repo, 'switch', '-q', 'main');
+};
+
+test('review --base equal to HEAD with a clean tree is refused', spawning, refusesReview(
+  (s) => { git(s.repo, 'branch', 'same'); }, '--base same', NOTHING('same')));
+
+test('review --base equal to HEAD with only an untracked file is refused', spawning, refusesReview(
+  (s) => { git(s.repo, 'branch', 'same'); writeFileSync(join(s.repo, 'new.txt'), 'new\n'); }, '--base same', NOTHING('same')));
+
+test('review --base equal to HEAD with a modified tracked file proceeds', spawning, reviewsBase(
+  (s) => { git(s.repo, 'branch', 'same'); writeFileSync(join(s.repo, 'tracked.txt'), 'two\n'); }, 'same'));
+
+test('review --base equal to HEAD with a staged new file proceeds', spawning, reviewsBase(
+  (s) => { git(s.repo, 'branch', 'same'); writeFileSync(join(s.repo, 'new.txt'), 'new\n'); git(s.repo, 'add', 'new.txt'); }, 'same'));
+
+test('review --base equal to HEAD with a staged deletion proceeds', spawning, reviewsBase(
+  (s) => { git(s.repo, 'branch', 'same'); git(s.repo, 'rm', '-q', 'tracked.txt'); }, 'same'));
+
+test('review --base equal to HEAD with a file removed from the index but left on disk proceeds', spawning, reviewsBase(
+  (s) => { git(s.repo, 'branch', 'same'); git(s.repo, 'rm', '-q', '--cached', 'tracked.txt'); }, 'same'));
+
+test('review --base equal to HEAD with a staged rename proceeds', spawning, reviewsBase(
+  (s) => { git(s.repo, 'branch', 'same'); git(s.repo, 'mv', 'tracked.txt', 'renamed.txt'); }, 'same'));
+
+test('review --base behind HEAD with commits only and a clean tree proceeds', spawning, reviewsBase(
+  (s) => {
+    git(s.repo, 'branch', 'old');
+    writeFileSync(join(s.repo, 'tracked.txt'), 'two\n');
+    git(s.repo, 'commit', '-q', '-am', 'second');
+  }, 'old'));
+
+test('review --base ahead of HEAD with a clean tree is refused: the merge base is HEAD', spawning, refusesReview(
+  ahead, '--base ahead', NOTHING('ahead')));
+
+test('review --base ahead of HEAD with a tracked change proceeds', spawning, reviewsBase(
+  (s) => { ahead(s); writeFileSync(join(s.repo, '.gitignore'), 'changed\n'); }, 'ahead'));
+
+test('review --base on a diverged branch ignores the base-only change and proceeds on a working-tree change', spawning, withScratch((s) => {
+  ahead(s);
+  git(s.repo, 'commit', '-q', '--allow-empty', '-m', 'main only');
+  const clean = run(s, 'review', { request: '--base ahead' });
+  assert.equal(clean.stdout, NOTHING('ahead'));
+  assert.equal(clean.status, 1);
+  writeFileSync(join(s.repo, '.gitignore'), 'changed\n');
+  const r = run(s, 'review', { request: '--base ahead' });
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(calls(s), [[...REVIEW, '--base', 'ahead']]);
+}));
 
 // Two tracked directories: a subdirectory run must see the whole repository, not only its own directory.
 function siblings(s) {
@@ -111,6 +171,20 @@ test('review --uncommitted from a subdirectory runs from the top and sees a chan
   assert.deepEqual(cwds(s), [s.repo]);
   assert.deepEqual(r.stdout.split('\n').slice(1, 3),
     [`cwd: ${s.repo}`, 'network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages']);
+}));
+
+test('review --base from a subdirectory compares the whole repository: refused clean, proceeds on a sibling change', spawning, withScratch((s) => {
+  const sub = siblings(s);
+  git(s.repo, 'commit', '-q', '-am', 'sibling change');
+  git(s.repo, 'branch', 'same');
+  const clean = run(s, 'review', { request: '--base same', cwd: sub });
+  assert.equal(clean.stdout, NOTHING('same'));
+  assert.equal(clean.status, 1);
+  writeFileSync(join(s.repo, 'b', 'file.txt'), 'changed again\n');
+  const r = run(s, 'review', { request: '--base same', cwd: sub });
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(calls(s), [[...REVIEW, '--base', 'same']]);
+  assert.deepEqual(cwds(s), [s.repo]);
 }));
 
 test('ask from a subdirectory runs from the top of the repository', spawning, withScratch((s) => {

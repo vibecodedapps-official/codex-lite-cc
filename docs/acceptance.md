@@ -26,7 +26,12 @@ permission rules for the permission items. Give scratch repositories an identity
    file, with no request text in it.
 2. **Review.** `review` on a real change returns a review that names a file and a line, and
    changes no files. A base ref that does not exist, a base with no merge base, and a clean
-   repository are each refused by the plugin before Codex runs.
+   repository are each refused by the plugin before Codex runs. Then check the scope of
+   `--base`, not only that the review names a file: on a branch diverged from the base, with a
+   change committed only on the base, a tracked file modified in the working tree and a new
+   file staged, `review --base <base>` must report the dirty change and the staged file and
+   must not report the base-only change. Run it a second time with `HEAD` equal to the base
+   and the same working-tree changes: it must run, not be refused, and report both.
 3. **Read-only is real.** `ask`, told to write one file in the working directory and one in
    the home directory, is refused both, and neither file exists afterwards. Run it with
    `approvals_reviewer = "auto_review"` in the scratch Codex config; without that setting the

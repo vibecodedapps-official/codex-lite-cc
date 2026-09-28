@@ -159,9 +159,13 @@ async function reviewChecks(base, cwd, top) {
   const m = await git(['merge-base', base, 'HEAD'], cwd);
   if (m.code === 1) refuse(`base ${base} and HEAD have no merge base`);
   if (m.code !== 0) refuse(`git merge-base failed: ${m.stderr.trim()}`);
-  // diff --quiet exits 1 when there are differences, the case that proceeds, and 0 when the range is empty.
-  const d = await git(['diff', '--quiet', `${base}...HEAD`], cwd);
-  if (d.code === 0) refuse(`nothing to review: no differences between ${base} and HEAD`);
+  // Codex reviews the merge base against the working tree, not against HEAD, so ask git the same, from the top.
+  // diff --quiet exits 1 when there are differences, the case that proceeds, and 0 when there are none.
+  const d = await git(['diff', '--quiet', m.stdout.trim()], top);
+  if (d.code === 0) {
+    refuse(`nothing to review: no tracked differences between the merge base of ${base} and HEAD and the working tree; ` +
+      'untracked files are not compared, git add them first');
+  }
   if (d.code !== 1) refuse(`git diff failed: ${d.stderr.trim()}`);
 }
 
