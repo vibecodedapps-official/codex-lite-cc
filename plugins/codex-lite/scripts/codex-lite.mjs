@@ -149,10 +149,10 @@ function takeRequest(dataDir, id) {
   } finally { rmSync(file, { force: true }); }
 }
 
-async function reviewChecks(base, cwd, top) {
+// Runs at the top of the repository, which is where review runs (main sets cwd to it), so every check sees the whole tree.
+async function reviewChecks(base, cwd) {
   if (base === undefined) {
-    // --uncommitted reviews the whole repository even from a subdirectory, so ask about the whole repository.
-    const s = await git(['status', '--porcelain', '--untracked-files=all'], top);
+    const s = await git(['status', '--porcelain', '--untracked-files=all'], cwd);
     if (s.code !== 0) refuse(`git status failed: ${s.stderr.trim()}`);
     if (!s.stdout.trim()) refuse('nothing to review: the repository has no uncommitted changes');
     return;
@@ -162,9 +162,9 @@ async function reviewChecks(base, cwd, top) {
   const m = await git(['merge-base', base, 'HEAD'], cwd);
   if (m.code === 1) refuse(`base ${base} and HEAD have no merge base`);
   if (m.code !== 0) refuse(`git merge-base failed: ${m.stderr.trim()}`);
-  // Codex reviews the merge base against the working tree, not against HEAD, so ask git the same, from the top.
+  // Codex reviews the merge base against the working tree, not against HEAD, so ask git the same.
   // diff --quiet exits 1 when there are differences, the case that proceeds, and 0 when there are none.
-  const d = await git(['diff', '--quiet', m.stdout.trim()], top);
+  const d = await git(['diff', '--quiet', m.stdout.trim()], cwd);
   if (d.code === 0) {
     refuse(`nothing to review: no tracked differences between the merge base of ${base} and HEAD and the working tree; ` +
       'untracked files are not compared, git add them first');
@@ -266,7 +266,7 @@ async function main() {
   // ask and review run from the top, whatever directory the shell was left in; do keeps the shell's, which bounds its writes.
   const cwd = command === 'do' ? here : join(top.stdout.trim());
   let before;
-  if (command === 'review') await reviewChecks(args.base, cwd, top.stdout.trim());
+  if (command === 'review') await reviewChecks(args.base, cwd);
   if (command === 'do') {
     const p = await probe(codex, cwd, win.value).catch((e) => { if (e instanceof Refusal) return { reason: e.message }; throw e; });
     if (!p.pass) refuse(`do was not run: ${p.reason}`);
