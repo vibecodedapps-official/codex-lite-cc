@@ -210,8 +210,10 @@ const seconds = (v) => {
 // Splitting on whitespace is safe only because review takes no free text. Adding free text needs a different format.
 export function parseReviewArgs(text) {
   const args = text.trim() ? text.trim().split(/\s+/) : [];
-  // parseArgs keeps the last of two values silently; ask refuses a second, so review does too.
-  if (args.filter((a) => a === '--timeout' || a.startsWith('--timeout=')).length > 1) throw new Error('--timeout given more than once; refused');
+  // parseArgs keeps the last of two values silently; ask refuses a second of any option, so review does too.
+  for (const name of ['base', 'model', 'timeout']) {
+    if (args.filter((a) => a === `--${name}` || a.startsWith(`--${name}=`)).length > 1) throw new Error(`--${name} given more than once; refused`);
+  }
   const { values } = parseArgs({ args, options: { base: { type: 'string' }, model: { type: 'string' }, timeout: { type: 'string' } },
     strict: true, allowPositionals: false });
   for (const name of ['base', 'model']) if (values[name] !== undefined) plain(`--${name}`, values[name]);

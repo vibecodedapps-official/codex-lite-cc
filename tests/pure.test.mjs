@@ -488,6 +488,11 @@ test('review arguments: a --timeout with no value, or a value starting with a hy
   assert.throws(() => parseReviewArgs('--timeout -5'), /Option '--timeout' argument is ambiguous\./);
 });
 
+test('review arguments: --base or --model given more than once is refused, in either spelling', () => {
+  assert.throws(() => parseReviewArgs('--base main --base dev'), /^Error: --base given more than once; refused$/);
+  assert.throws(() => parseReviewArgs('--model=x --model y'), /^Error: --model given more than once; refused$/);
+});
+
 test('review arguments: --timeout given more than once is refused, in either spelling', () => {
   for (const text of ['--timeout 5 --timeout 6', '--timeout=5 --timeout 6', '--timeout 5 --timeout=5']) {
     assert.throws(() => parseReviewArgs(text), /^Error: --timeout given more than once; refused$/, text);
