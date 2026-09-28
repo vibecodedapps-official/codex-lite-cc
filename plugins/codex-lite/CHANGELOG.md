@@ -18,6 +18,9 @@
   status line was cut off; an unexpected error in the plugin itself is `failed` in either
   phase. `setup`, the hook and an unknown command print none. Before, a
   caller had to read the prose to tell a refusal from a timeout from a Codex failure.
+- `review` refuses a repeated `--base` or `--model`, as it does a repeated `--timeout` and as
+  `ask` always has. Before, the last value won silently, so a call that appended `--base`
+  twice reviewed against the wrong base without notice.
 - `ask` and `review` take `--timeout <seconds>` or `--timeout=<seconds>`, a whole number from
   1 to 3600, at most once, which replaces the sixty-minute limit on the Codex turn for that
   call. On `ask` it is a leading flag next to `--model` and `--resume`, in any order. It
