@@ -165,6 +165,11 @@ result looks wrong, run `/codex-lite:setup`.
 - Your request reaches Codex through two model steps: Claude writes it to a file, then runs
   the script, which sends the file to Codex. Delivery is verbatim on a best-effort basis; a
   very long paste could be altered and nothing detects it.
+- One call at a time per Claude session. Each session has one request file and one saved
+  thread file in the plugin's data directory, and the script deletes the request file when it
+  reads it. A second call that starts before the first has read its request file can take or
+  lose the other's request, and the saved thread is whichever run saved last; a failure to
+  save it only warns.
 - `do` and `setup` set `disable-model-invocation`, which stops Claude from invoking them, not
   from repeating their steps. Once a command has run in a session, Claude can write the
   request file and run the script itself when asked in plain words. In default permission

@@ -22,6 +22,9 @@
   bounds the turn only, not the local checks before it, and is not passed to Codex. `do` has
   no such flag. Before, the only override was a test-only environment variable, which a
   caller could not pass per call.
+- The README says the plugin supports one call at a time per Claude session: two concurrent
+  calls in one session share the request file and the saved thread file. Before, it did not
+  say.
 
 ## 0.6.0 - 2026-09-26
 
