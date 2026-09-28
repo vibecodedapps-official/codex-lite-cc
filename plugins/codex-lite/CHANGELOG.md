@@ -3,7 +3,8 @@
 ## 0.7.0 - 2026-09-28
 
 - The `UserPromptSubmit` hook adds no routing note to a prompt that starts with any slash
-  command, whichever plugin it belongs to. Before, only a prompt starting with `/codex-lite:`
+  command, whichever plugin it belongs to; a prompt that starts with an absolute path is not
+  a command and still gets the note. Before, only a prompt starting with `/codex-lite:`
   was skipped, so a command such as `/other:run --no-codex` got the note in its context.
 - `review --base <ref>` checks for changes the way Codex reviews them: the net difference from
   the merge base of the base and `HEAD` to the working tree, tracked files only. A base equal

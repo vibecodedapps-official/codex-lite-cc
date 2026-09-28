@@ -66,6 +66,13 @@ test('hook: a typed slash command of another plugin that mentions Codex gets not
   assert.deepEqual([r.stdout, r.status], ['', 0]);
 });
 
+test('hook: a prompt that starts with an absolute path, not a command, still gets the note', () => {
+  for (const prompt of ['/Users/joe/app/build.log fails on line 40, ask codex what it means', '/tmp/x.txt: codex?', '/ codex']) {
+    const r = hook(JSON.stringify({ prompt }));
+    assert.deepEqual([r.stdout, r.status], [NOTE, 0], prompt);
+  }
+});
+
 test('hook: a prompt with a leading space and no slash still gets the note', () => {
   const r = hook(JSON.stringify({ prompt: ' codex please' }));
   assert.deepEqual([r.stdout, r.status], [NOTE, 0]);
