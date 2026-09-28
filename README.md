@@ -47,7 +47,7 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 | Command | Runs | Sandbox |
 | --- | --- | --- |
 | `/codex-lite:ask [--model <name>] [--resume <thread id>] <question>`, or `--resume` alone on the first line and the question below it | `codex exec <flags> -`, or `codex exec resume <thread id> <flags> -` with `--resume`, plus `--model <name>` if given, the question on stdin | `read-only` |
-| `/codex-lite:review [--base <ref>] [--model <name>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>`, plus `--model <name>` if given | `read-only` |
+| `/codex-lite:review [--base <ref>] [--model <name>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>` (the net difference from the merge base of `<ref>` and `HEAD` to the working tree, tracked files only), plus `--model <name>` if given | `read-only` |
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
 | `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
 
@@ -62,7 +62,10 @@ words to have Codex change files, Claude tells you to type `/codex-lite:do <task
 
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
-there is nothing to review. `ask` takes two optional leading flags, in either order, each at
+there is nothing to review. With `--base`, as in Codex, what is reviewed is the net difference
+from the merge base of the base and `HEAD` to the working tree: commits, staged and unstaged
+changes together, tracked files only. An untracked file is not compared, so `git add` it
+first; a change that a later change undoes is invisible. `ask` takes two optional leading flags, in either order, each at
 most once: `--model <name>` or `--model=<name>`, and `--resume`. Everything after the last flag
 and its delimiter is the question, so a `--model` or a `--resume` later in the question is plain
 text. `ask` refuses a missing model name, or one that starts with `-`. `--resume` on its own,
