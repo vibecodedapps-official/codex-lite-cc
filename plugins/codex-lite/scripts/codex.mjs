@@ -222,16 +222,15 @@ export function parseReviewArgs(text) {
 
 // Only leading --model, --resume and --timeout are options, in any order, each at most once: ask's text is free, so either
 // spelling later on is part of the question. Each match consumes its value and the one delimiter after it (space,
-// tab or newline), so the question is exactly what is left, kept verbatim. Whitespace before an option is skipped,
-// so extra spaces or lines between the two options do not turn the second into question text.
-function matchModel(s) {
-  const m = /^\s*--model(?:=(\S*)|\s+(\S*)|$)/.exec(s);
-  return m && { value: plain('--model', m[1] ?? m[2] ?? ''), rest: s.slice(m[0].length + 1) };
+// tab, or a newline with or without a carriage return), so the question is exactly what is left, kept verbatim.
+// Whitespace before an option is skipped, so extra spaces or lines between two options do not turn the second into
+// question text. --model and --timeout share the grammar and differ only in how the value is checked.
+function matchValue(name, check, s) {
+  const m = new RegExp(`^\\s*--${name}(?:=(\\S*)|\\s+(\\S*)|$)(?:\\r?\\n|[ \\t])?`).exec(s);
+  return m && { value: check(m[1] ?? m[2] ?? ''), rest: s.slice(m[0].length) };
 }
-function matchTimeout(s) {
-  const m = /^\s*--timeout(?:=(\S*)|\s+(\S*)|$)/.exec(s);
-  return m && { value: seconds(m[1] ?? m[2] ?? ''), rest: s.slice(m[0].length + 1) };
-}
+const matchModel = (s) => matchValue('model', (v) => plain('--model', v), s);
+const matchTimeout = (s) => matchValue('timeout', seconds, s);
 
 // --resume=<id> or --resume <id> (same line): explicit id, checked against THREAD_ID. --resume followed by a
 // newline, end of text, or another option (--resume --model x, --resume --timeout 5): bare, resumed id comes from the saved thread file.

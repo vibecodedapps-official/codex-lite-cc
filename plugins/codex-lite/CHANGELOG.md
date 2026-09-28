@@ -18,6 +18,10 @@
   status line was cut off; an unexpected error in the plugin itself is `failed` in either
   phase. `setup`, the hook and an unknown command print none. Before, a
   caller had to read the prose to tell a refusal from a timeout from a Codex failure.
+- On `ask`, a CRLF line ending after `--model <name>` or `--timeout <seconds>` is consumed
+  whole, as it already was after a bare `--resume`. Before, `--model x` followed by CRLF left
+  a newline at the start of the question, so a request file with Windows line endings sent
+  Codex a question with a leading blank line.
 - `review` refuses a repeated `--base` or `--model`, as it does a repeated `--timeout` and as
   `ask` always has. Before, the last value won silently, so a call that appended `--base`
   twice reviewed against the wrong base without notice.
