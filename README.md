@@ -94,7 +94,7 @@ bad arguments, nothing to review, not a repository, a bad or missing request fil
 `do` probe. `status: timeout` means the turn was attempted and its deadline ended it.
 `status: failed` means the turn was attempted and something else went wrong: Codex could not
 start, exited non-zero, sent no final message or reported an error, or the `do` tree state
-could not be read. `status: ok` means the run and all its reporting completed, not that a
+could not be read; a crash of the plugin itself, before or after the turn, is `failed` too. `status: ok` means the run and all its reporting completed, not that a
 review found nothing. The exit code is 0 for `ok` and 1 otherwise. A result with no `status:`
 line was cut off, by the Bash tool's timeout or a kill, and is incomplete. The plugin does not
 tell model, login or sandbox failures apart: Codex reports them as prose, which the

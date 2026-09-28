@@ -380,5 +380,6 @@ async function hook() {
 if (process.argv[2] === 'hook') hook().catch((e) => process.stderr.write(`codex-lite: hook error: ${e?.stack ?? e}\n`));
 else main().then((ok) => { process.exitCode = ok ? 0 : 1; }, (e) => {
   out.push(e instanceof Refusal ? `codex-lite: ${e.message}` : `codex-lite: unexpected error: ${e?.stack ?? e}`);
+  if (!(e instanceof Refusal) && status) status = 'failed'; // a crash is not a deliberate stop, whichever phase it was in
   process.exitCode = 1;
 }).finally(() => process.stdout.write(`${[...out, ...(status ? [`status: ${status}`] : [])].join('\n')}\n`));
