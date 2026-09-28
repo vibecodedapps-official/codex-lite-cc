@@ -11,7 +11,7 @@ import { NPM_WIN32, WINDOWS_SANDBOXES, buildArgv, decideProbe, parseAskArgs, par
   validThreadId, windowsSandboxSetting } from './codex.mjs';
 
 const started = Date.now();
-// Test-only seams, read once. CODEX_LITE_TIMEOUT_MS replaces both deadlines below.
+// Test-only seams, read once. CODEX_LITE_TIMEOUT_MS replaces both deadlines below; an ask or review --timeout wins for the turn.
 const { CODEX_LITE_CODEX_BIN, CODEX_LITE_TIMEOUT_MS, CODEX_LITE_PROBE_TARGET } = process.env;
 const override = Number(CODEX_LITE_TIMEOUT_MS) > 0 ? Number(CODEX_LITE_TIMEOUT_MS) : null;
 const TURN_MS = override ?? 60 * 60_000;
@@ -221,10 +221,10 @@ async function treeFooter(cwd, before) {
 }
 
 // Each condition fails the run on its own, whatever the others say.
-function failures(r) {
+function failures(r, ms) {
   if (r.spawnError) return [`could not start codex: ${r.spawnError.message}`];
   if (r.timedOut) {
-    return [`timed out after ${secs(TURN_MS)}; ${r.stillRunning ? `codex may still be running as pid ${r.pid}` : POSIX ? 'its process group was stopped' : 'codex was stopped, but on Windows its child processes may still be running'}`];
+    return [`timed out after ${secs(ms)}; ${r.stillRunning ? `codex may still be running as pid ${r.pid}` : POSIX ? 'its process group was stopped' : 'codex was stopped, but on Windows its child processes may still be running'}`];
   }
   return [r.code !== 0 && (r.signal ? `codex was ended by ${r.signal}` : `codex exited with status ${r.code}`),
     !r.sawTurnCompleted && 'no turn.completed event arrived', r.finalMessage === null && 'no final message arrived',
@@ -273,10 +273,12 @@ async function main() {
     before = await head(cwd);
   }
   const reader = readStream();
+  // The flag bounds the Codex turn only; the local git and probe calls before it keep their own deadline.
+  const turnMs = args.timeout === undefined ? TURN_MS : args.timeout * 1000;
   status = 'failed';
-  const r = await run(codex, argv, { ms: TURN_MS, cwd, input: command === 'review' ? undefined : input, onStdout: (b) => reader.write(b) });
+  const r = await run(codex, argv, { ms: turnMs, cwd, input: command === 'review' ? undefined : input, onStdout: (b) => reader.write(b) });
   Object.assign(r, reader.end());
-  const why = failures(r);
+  const why = failures(r, turnMs);
   if (r.timedOut) status = 'timeout';
   out.push(requestedLine(argv), `cwd: ${cwd}`);
   if (win.problem) out.push(`codex-lite: warning: ${win.problem}`);

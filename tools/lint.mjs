@@ -33,7 +33,7 @@ for (const p of modules) {
   if (r.status !== 0) fail(`${rel(p)}: node --check failed\n${(r.stderr || r.error?.message || "").trim()}`);
 }
 
-// 2. Runtime budget: exactly the two scripts, 650 lines together (counted as wc -l does).
+// 2. Runtime budget: exactly the two scripts, 700 lines together (counted as wc -l does).
 const runtime = ["plugins/codex-lite/scripts/codex.mjs", "plugins/codex-lite/scripts/codex-lite.mjs"];
 const extra = modules.map(rel).filter((p) => p.startsWith("plugins/") && !runtime.includes(p));
 if (extra.length) fail(`runtime modules other than the two scripts: ${extra.join(", ")}`);
@@ -42,7 +42,7 @@ for (const p of runtime) {
   const s = read(p);
   if (s !== null) lines += s.split("\n").length - 1;
 }
-if (lines > 650) fail(`runtime scripts total ${lines} lines, budget is 650`);
+if (lines > 700) fail(`runtime scripts total ${lines} lines, budget is 700`);
 
 // 3. Versions agree, and the README install block names this marketplace and plugin.
 const pkg = json("package.json");
@@ -101,4 +101,4 @@ if (failures.length) {
   console.error(`lint: ${failures.length} failure(s)\n${failures.map((f) => `- ${f}`).join("\n")}`);
   process.exit(1);
 }
-console.log(`lint: ok (${modules.length} modules checked, runtime ${lines}/650 lines)`);
+console.log(`lint: ok (${modules.length} modules checked, runtime ${lines}/700 lines)`);

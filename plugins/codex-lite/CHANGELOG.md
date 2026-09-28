@@ -16,6 +16,12 @@
   `failed` once it is, `ok` only when the run and its reporting completed. A result with no
   status line was cut off. `setup`, the hook and an unknown command print none. Before, a
   caller had to read the prose to tell a refusal from a timeout from a Codex failure.
+- `ask` and `review` take `--timeout <seconds>` or `--timeout=<seconds>`, a whole number from
+  1 to 3600, at most once, which replaces the sixty-minute limit on the Codex turn for that
+  call. On `ask` it is a leading flag next to `--model` and `--resume`, in any order. It
+  bounds the turn only, not the local checks before it, and is not passed to Codex. `do` has
+  no such flag. Before, the only override was a test-only environment variable, which a
+  caller could not pass per call.
 
 ## 0.6.0 - 2026-09-26
 

@@ -192,6 +192,44 @@ test('a run past its deadline has its whole process group killed, grandchild inc
   assert.equal(await dead(pids(s)[0]), true);
 }));
 
+test('ask --timeout 1 with no environment override ends the turn after 1 s, and the flag does not reach Codex', spawning, withScratch(async (s) => {
+  const r = run(s, 'ask', { request: '--timeout 1 q', env: { FAKE_CODEX: 'hang' } });
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), [ASK]);
+  assert.equal(r.stdout.split('\n')[0], 'requested: codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="read-only" -');
+  assert.match(r.stdout, /\n\ncodex-lite: the run failed: timed out after 1 s; its process group was stopped\n/);
+  assert.match(r.stdout, /\nstatus: timeout\n$/);
+  assert.equal(await dead(pids(s)[0]), true);
+}));
+
+test('review --timeout 1 with no environment override ends the turn after 1 s, and the flag does not reach Codex', spawning, withScratch(async (s) => {
+  writeFileSync(join(s.repo, 'tracked.txt'), 'two\n');
+  const r = run(s, 'review', { request: '--timeout 1', env: { FAKE_CODEX: 'hang' } });
+  assert.equal(r.status, 1);
+  assert.equal(r.stdout.split('\n')[0],
+    'requested: codex exec review --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="read-only" --uncommitted');
+  assert.match(r.stdout, /\n\ncodex-lite: the run failed: timed out after 1 s; its process group was stopped\n/);
+  assert.match(r.stdout, /\nstatus: timeout\n$/);
+  assert.equal(await dead(pids(s)[0]), true);
+}));
+
+test('ask --timeout 5 against a fast Codex succeeds', spawning, withScratch((s) => {
+  const r = run(s, 'ask', { request: '--timeout 5 q' });
+  assert.equal(r.status, 0, r.stdout);
+  assert.deepEqual(calls(s), [ASK]);
+  assert.equal(stdin(s), 'q');
+  assert.match(r.stdout, /\n\nfake answer\n\n.*\nstatus: ok\n$/s);
+}));
+
+test('ask --timeout wins over CODEX_LITE_TIMEOUT_MS for the turn', spawning, withScratch(async (s) => {
+  const r = run(s, 'ask', { request: '--timeout 1 q', env: { FAKE_CODEX: 'hang', CODEX_LITE_TIMEOUT_MS: '20000' } });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /\n\ncodex-lite: the run failed: timed out after 1 s; its process group was stopped\n/);
+  assert.match(r.stdout, /\nstatus: timeout\n$/);
+  assert.equal(r.ms < 15_000, true, `${r.ms} ms`);
+  assert.equal(await dead(pids(s)[0]), true);
+}));
+
 test('a child that ignores SIGTERM is killed by the escalation, within 10 s of the deadline', spawning, withScratch(async (s) => {
   const r = run(s, 'ask', { request: 'q', env: { FAKE_CODEX: 'ignores-sigterm', CODEX_LITE_TIMEOUT_MS: '1000' } });
   assert.equal(r.status, 1);

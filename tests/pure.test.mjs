@@ -297,11 +297,11 @@ test('windowsSandboxSetting ignores delimiters inside comments and one-line stri
 });
 
 test('review arguments: empty means the working tree', () => {
-  assert.deepEqual(parseReviewArgs('\n'), { base: undefined, model: undefined });
+  assert.deepEqual(parseReviewArgs('\n'), { base: undefined, model: undefined, timeout: undefined });
 });
 
 test('review arguments: --base and --model split on whitespace', () => {
-  assert.deepEqual(parseReviewArgs('--base topic/$(id)\n  --model gpt-5\n'), { base: 'topic/$(id)', model: 'gpt-5' });
+  assert.deepEqual(parseReviewArgs('--base topic/$(id)\n  --model gpt-5\n'), { base: 'topic/$(id)', model: 'gpt-5', timeout: undefined });
 });
 
 test('review arguments: a value starting with a hyphen is refused', () => {
@@ -318,78 +318,78 @@ test('review arguments: an unknown option or a bare word is refused', () => {
 });
 
 test('ask arguments: a plain question is the whole text', () => {
-  assert.deepEqual(parseAskArgs('what does math.mjs export?\n'), { model: undefined, resume: undefined, question: 'what does math.mjs export?\n' });
+  assert.deepEqual(parseAskArgs('what does math.mjs export?\n'), { model: undefined, resume: undefined, timeout: undefined, question: 'what does math.mjs export?\n' });
 });
 
 test('ask arguments: a leading --model <name> is split from the question', () => {
   assert.deepEqual(parseAskArgs('--model gpt-5 critique this plan:\n  1. step'),
-    { model: 'gpt-5', resume: undefined, question: 'critique this plan:\n  1. step' });
+    { model: 'gpt-5', resume: undefined, timeout: undefined, question: 'critique this plan:\n  1. step' });
 });
 
 test('ask arguments: a leading --model=<name> is split from the question', () => {
-  assert.deepEqual(parseAskArgs('--model=astra\nwhy?'), { model: 'astra', resume: undefined, question: 'why?' });
+  assert.deepEqual(parseAskArgs('--model=astra\nwhy?'), { model: 'astra', resume: undefined, timeout: undefined, question: 'why?' });
 });
 
 test('ask arguments: a --model later in the question is question text', () => {
-  assert.deepEqual(parseAskArgs('what does --model gpt-5 do?'), { model: undefined, resume: undefined, question: 'what does --model gpt-5 do?' });
+  assert.deepEqual(parseAskArgs('what does --model gpt-5 do?'), { model: undefined, resume: undefined, timeout: undefined, question: 'what does --model gpt-5 do?' });
 });
 
 // --resume forms, exactly as the interface contract lists them.
 test('ask arguments: --resume then a newline is bare; the question starts on the next line', () => {
-  assert.deepEqual(parseAskArgs('--resume\nq'), { model: undefined, resume: true, question: 'q' });
+  assert.deepEqual(parseAskArgs('--resume\nq'), { model: undefined, resume: true, timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: bare --resume consumes only the one newline after it', () => {
-  assert.deepEqual(parseAskArgs('--resume\n\nq'), { model: undefined, resume: true, question: '\nq' });
+  assert.deepEqual(parseAskArgs('--resume\n\nq'), { model: undefined, resume: true, timeout: undefined, question: '\nq' });
 });
 
 test('ask arguments: trailing whitespace before the newline still leaves --resume bare', () => {
-  assert.deepEqual(parseAskArgs('--resume \nq'), { model: undefined, resume: true, question: 'q' });
+  assert.deepEqual(parseAskArgs('--resume \nq'), { model: undefined, resume: true, timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: a CRLF line ending after bare --resume is consumed whole', () => {
-  assert.deepEqual(parseAskArgs('--resume\r\nq'), { model: undefined, resume: true, question: 'q' });
+  assert.deepEqual(parseAskArgs('--resume\r\nq'), { model: undefined, resume: true, timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: trailing whitespace with nothing after it is still bare', () => {
-  assert.deepEqual(parseAskArgs('--resume '), { model: undefined, resume: true, question: '' });
+  assert.deepEqual(parseAskArgs('--resume '), { model: undefined, resume: true, timeout: undefined, question: '' });
 });
 
 test('ask arguments: --resume <id> on the same line is an explicit id', () => {
-  assert.deepEqual(parseAskArgs('--resume t-9 q'), { model: undefined, resume: 't-9', question: 'q' });
+  assert.deepEqual(parseAskArgs('--resume t-9 q'), { model: undefined, resume: 't-9', timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: extra spaces before the id are skipped, not read as part of it', () => {
-  assert.deepEqual(parseAskArgs('--resume  t-9 q'), { model: undefined, resume: 't-9', question: 'q' });
+  assert.deepEqual(parseAskArgs('--resume  t-9 q'), { model: undefined, resume: 't-9', timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: --resume=<id> is the same as the space form', () => {
-  assert.deepEqual(parseAskArgs('--resume=t-9 q'), { model: undefined, resume: 't-9', question: 'q' });
+  assert.deepEqual(parseAskArgs('--resume=t-9 q'), { model: undefined, resume: 't-9', timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: a plain word after --resume is taken as the id, not as question text', () => {
-  assert.deepEqual(parseAskArgs('--resume what about step 3?'), { model: undefined, resume: 'what', question: 'about step 3?' });
+  assert.deepEqual(parseAskArgs('--resume what about step 3?'), { model: undefined, resume: 'what', timeout: undefined, question: 'about step 3?' });
 });
 
 test('ask arguments: --resume directly before --model is bare', () => {
-  assert.deepEqual(parseAskArgs('--resume --model x q'), { model: 'x', resume: true, question: 'q' });
+  assert.deepEqual(parseAskArgs('--resume --model x q'), { model: 'x', resume: true, timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: --model then --resume, in that order, both take effect', () => {
-  assert.deepEqual(parseAskArgs('--model x --resume\nq'), { model: 'x', resume: true, question: 'q' });
+  assert.deepEqual(parseAskArgs('--model x --resume\nq'), { model: 'x', resume: true, timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: extra spaces or lines between the options do not turn the second into question text', () => {
-  assert.deepEqual(parseAskArgs('--model gpt-5  --resume\nfollow up'), { model: 'gpt-5', resume: true, question: 'follow up' });
-  assert.deepEqual(parseAskArgs('--resume\n  --model x\nq'), { model: 'x', resume: true, question: 'q' });
+  assert.deepEqual(parseAskArgs('--model gpt-5  --resume\nfollow up'), { model: 'gpt-5', resume: true, timeout: undefined, question: 'follow up' });
+  assert.deepEqual(parseAskArgs('--resume\n  --model x\nq'), { model: 'x', resume: true, timeout: undefined, question: 'q' });
 });
 
 test('ask arguments: --resume alone, with nothing after it, is bare with an empty question', () => {
-  assert.deepEqual(parseAskArgs('--resume'), { model: undefined, resume: true, question: '' });
+  assert.deepEqual(parseAskArgs('--resume'), { model: undefined, resume: true, timeout: undefined, question: '' });
 });
 
 test('ask arguments: --resume later in the question is question text', () => {
-  assert.deepEqual(parseAskArgs('what does --resume do?'), { model: undefined, resume: undefined, question: 'what does --resume do?' });
+  assert.deepEqual(parseAskArgs('what does --resume do?'), { model: undefined, resume: undefined, timeout: undefined, question: 'what does --resume do?' });
 });
 
 test('ask arguments: a token that only starts with an option name is an id after --resume, and refused', () => {
@@ -428,6 +428,70 @@ test('ask arguments: a missing or empty model name is refused', () => {
 
 test('ask arguments: a model name starting with a hyphen is refused', () => {
   assert.throws(() => parseAskArgs('--model --output=x why?'), /--model "--output=x" is empty or starts with "-"; refused/);
+});
+
+// --timeout <seconds>, for ask and review: a whole number from 1 to 3600, at most once.
+test('ask arguments: --timeout <seconds> and --timeout=<seconds> are split from the question as a number', () => {
+  assert.deepEqual(parseAskArgs('--timeout 5 q'), { model: undefined, resume: undefined, timeout: 5, question: 'q' });
+  assert.deepEqual(parseAskArgs('--timeout=5\nq'), { model: undefined, resume: undefined, timeout: 5, question: 'q' });
+});
+
+test('ask arguments: --timeout accepts the boundaries 1 and 3600', () => {
+  assert.deepEqual(parseAskArgs('--timeout 1 q'), { model: undefined, resume: undefined, timeout: 1, question: 'q' });
+  assert.deepEqual(parseAskArgs('--timeout 3600 q'), { model: undefined, resume: undefined, timeout: 3600, question: 'q' });
+});
+
+test('ask arguments: a --timeout outside 1 to 3600, or not a whole number, is refused naming the value', () => {
+  for (const [text, value] of [['--timeout 0 q', '"0"'], ['--timeout 3601 q', '"3601"'], ['--timeout x q', '"x"'], ['--timeout 2.5 q', '"2.5"'],
+    ['--timeout -5 q', '"-5"'], ['--timeout', '""'], ['--timeout= q', '""'], ['--timeout=', '""']]) {
+    assert.throws(() => parseAskArgs(text), new RegExp(`^Error: --timeout ${value} is not a whole number of seconds from 1 to 3600; refused$`), text);
+  }
+});
+
+test('ask arguments: --timeout given more than once is refused', () => {
+  assert.throws(() => parseAskArgs('--timeout 5 --timeout=6 q'), /^Error: --timeout given more than once; refused$/);
+});
+
+test('ask arguments: --timeout with --model and --resume, in each order, all take effect', () => {
+  const want = { model: 'x', resume: 't-9', timeout: 5, question: 'q' };
+  for (const text of ['--timeout 5 --model x --resume t-9 q', '--timeout 5 --resume t-9 --model x q', '--model x --timeout 5 --resume t-9 q',
+    '--model x --resume t-9 --timeout 5 q', '--resume t-9 --timeout 5 --model x q', '--resume t-9 --model x --timeout 5 q']) {
+    assert.deepEqual(parseAskArgs(text), want, text);
+  }
+});
+
+test('ask arguments: --resume directly before --timeout on one line is bare', () => {
+  assert.deepEqual(parseAskArgs('--resume --timeout 5 q'), { model: undefined, resume: true, timeout: 5, question: 'q' });
+  assert.deepEqual(parseAskArgs('--timeout 5 --resume\nq'), { model: undefined, resume: true, timeout: 5, question: 'q' });
+});
+
+test('ask arguments: --timeout later in the question is question text', () => {
+  assert.deepEqual(parseAskArgs('what does --timeout 5 do?'), { model: undefined, resume: undefined, timeout: undefined, question: 'what does --timeout 5 do?' });
+});
+
+test('review arguments: --timeout <seconds> and --timeout=<seconds>, with the boundaries 1 and 3600', () => {
+  assert.deepEqual(parseReviewArgs('--timeout 5'), { base: undefined, model: undefined, timeout: 5 });
+  assert.deepEqual(parseReviewArgs('--base main --timeout=5 --model x\n'), { base: 'main', model: 'x', timeout: 5 });
+  assert.deepEqual(parseReviewArgs('--timeout 1'), { base: undefined, model: undefined, timeout: 1 });
+  assert.deepEqual(parseReviewArgs('--timeout 3600'), { base: undefined, model: undefined, timeout: 3600 });
+});
+
+test('review arguments: a --timeout outside 1 to 3600, or not a whole number, is refused naming the value', () => {
+  for (const [text, value] of [['--timeout 0', '"0"'], ['--timeout 3601', '"3601"'], ['--timeout x', '"x"'], ['--timeout 2.5', '"2.5"'],
+    ['--timeout=-5', '"-5"'], ['--timeout=', '""']]) {
+    assert.throws(() => parseReviewArgs(text), new RegExp(`^Error: --timeout ${value} is not a whole number of seconds from 1 to 3600; refused$`), text);
+  }
+});
+
+test('review arguments: a --timeout with no value, or a value starting with a hyphen after a space, is refused by the option parser', () => {
+  assert.throws(() => parseReviewArgs('--timeout'), /Option '--timeout <value>' argument missing$/);
+  assert.throws(() => parseReviewArgs('--timeout -5'), /Option '--timeout' argument is ambiguous\./);
+});
+
+test('review arguments: --timeout given more than once is refused, in either spelling', () => {
+  for (const text of ['--timeout 5 --timeout 6', '--timeout=5 --timeout 6', '--timeout 5 --timeout=5']) {
+    assert.throws(() => parseReviewArgs(text), /^Error: --timeout given more than once; refused$/, text);
+  }
 });
 
 const probe = (target) => spawnSync(process.execPath, ['-e', PROBE_SCRIPT, target], { encoding: 'utf8' });
