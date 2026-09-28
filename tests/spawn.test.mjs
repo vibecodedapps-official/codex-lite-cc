@@ -61,6 +61,16 @@ test('hook: a typed /codex-lite: command gets nothing', () => {
   assert.deepEqual([r.stdout, r.status], ['', 0]);
 });
 
+test('hook: a typed slash command of another plugin that mentions Codex gets nothing', () => {
+  const r = hook(JSON.stringify({ prompt: '/other:cmd mentions codex' }));
+  assert.deepEqual([r.stdout, r.status], ['', 0]);
+});
+
+test('hook: a prompt with a leading space and no slash still gets the note', () => {
+  const r = hook(JSON.stringify({ prompt: ' codex please' }));
+  assert.deepEqual([r.stdout, r.status], [NOTE, 0]);
+});
+
 test('hook: missing or malformed input prints nothing and exits 0', () => {
   for (const input of [undefined, '', 'codex', 'null', '{"prompt":42}']) {
     const r = hook(input);

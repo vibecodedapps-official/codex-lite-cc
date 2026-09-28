@@ -207,8 +207,9 @@ The plugin adds one `UserPromptSubmit` hook. When a prompt you send mentions Cod
 case, the hook adds a short routing note to Claude's context: use `ask` for questions and plan
 critiques, `review` only for diffs, put a model choice first as `--model <name>`, put `--resume`
 first, on its own line, for a follow-up in the same Codex thread, send file changes to
-`/codex-lite:do`, and do not run Codex directly. A prompt that starts with
-`/codex-lite:` gets no note, because the command already routes itself. A prompt that does not
+`/codex-lite:do`, and do not run Codex directly. A prompt that starts with a slash command
+gets no note, whichever plugin the command belongs to, because a typed command already routes
+itself. A prompt that does not
 mention Codex gets nothing. The note is guidance: Claude usually follows it, but it does not
 stop Claude from running Codex some other way.
 

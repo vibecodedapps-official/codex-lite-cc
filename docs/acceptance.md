@@ -110,6 +110,8 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     `/codex-lite:review` or start Codex directly during that scenario. Then type
     `/codex-lite:do Report the current directory; change no files`, and confirm the hook adds
     no routing note for it, with `claude --debug hooks` if the transcript does not show it.
+    Then type a slash command of another plugin, or a built-in one, whose text mentions Codex,
+    and confirm the hook adds no note for that either.
 
 17. **Resume by hand.** Run a real `/codex-lite:ask` with a question, and take the thread id
     from the result's `thread` line. In the same session, run `/codex-lite:ask` again with
