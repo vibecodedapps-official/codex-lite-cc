@@ -63,7 +63,8 @@ words to have Codex change files, Claude tells you to type `/codex-lite:do <task
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
 there is nothing to review. `review` takes `--base <ref>`, `--model <name>` and
-`--timeout <seconds>`, each at most once. With `--base`, as in Codex, what is reviewed is the
+`--timeout <seconds>`; a second `--timeout` is refused, while a repeated `--base` or `--model`
+keeps the last value. With `--base`, as in Codex, what is reviewed is the
 net difference from the merge base of the base and `HEAD` to the working tree: commits, staged
 and unstaged changes together, tracked files only. An untracked file is not compared, so
 `git add` it first; a change that a later change undoes is invisible.
