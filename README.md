@@ -46,8 +46,8 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 
 | Command | Runs | Sandbox |
 | --- | --- | --- |
-| `/codex-lite:ask [--model <name>] [--resume <thread id>] <question>`, or `--resume` alone on the first line and the question below it | `codex exec <flags> -`, or `codex exec resume <thread id> <flags> -` with `--resume`, plus `--model <name>` if given, the question on stdin | `read-only` |
-| `/codex-lite:review [--base <ref>] [--model <name>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>` (the net difference from the merge base of `<ref>` and `HEAD` to the working tree, tracked files only), plus `--model <name>` if given | `read-only` |
+| `/codex-lite:ask [--model <name>] [--resume <thread id>] [--timeout <seconds>] <question>`, or `--resume` alone on the first line and the question below it | `codex exec <flags> -`, or `codex exec resume <thread id> <flags> -` with `--resume`, plus `--model <name>` if given, the question on stdin | `read-only` |
+| `/codex-lite:review [--base <ref>] [--model <name>] [--timeout <seconds>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>` (the net difference from the merge base of `<ref>` and `HEAD` to the working tree, tracked files only), plus `--model <name>` if given | `read-only` |
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
 | `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
 
@@ -62,19 +62,29 @@ words to have Codex change files, Claude tells you to type `/codex-lite:do <task
 
 `ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
-there is nothing to review. With `--base`, as in Codex, what is reviewed is the net difference
-from the merge base of the base and `HEAD` to the working tree: commits, staged and unstaged
-changes together, tracked files only. An untracked file is not compared, so `git add` it
-first; a change that a later change undoes is invisible. `ask` takes two optional leading flags, in either order, each at
-most once: `--model <name>` or `--model=<name>`, and `--resume`. Everything after the last flag
-and its delimiter is the question, so a `--model` or a `--resume` later in the question is plain
-text. `ask` refuses a missing model name, or one that starts with `-`. `--resume` on its own,
-followed by a newline, the end of the text, or another flag, continues the last Codex thread
-this Claude session started; `--resume <thread id>` or `--resume=<thread id>` continues that
-thread instead. A word after `--resume` on the same line is always read as the thread id, not
-as the start of the question, so the bare form needs a line of its own, or `--model` directly
-after it. See "Following up" below for what `--resume` does and how it fails. `do` takes
-no flags: everything after the command is the request.
+there is nothing to review. `review` takes `--base <ref>`, `--model <name>` and
+`--timeout <seconds>`, each at most once. With `--base`, as in Codex, what is reviewed is the
+net difference from the merge base of the base and `HEAD` to the working tree: commits, staged
+and unstaged changes together, tracked files only. An untracked file is not compared, so
+`git add` it first; a change that a later change undoes is invisible.
+
+`ask` takes three optional leading flags, in any order, each at most once: `--model <name>` or
+`--model=<name>`, `--resume`, and `--timeout <seconds>` or `--timeout=<seconds>`. Everything
+after the last flag and its delimiter is the question, so a `--model`, `--resume` or
+`--timeout` later in the question is plain text. `ask` refuses a missing model name, or one
+that starts with `-`. `--resume` on its own, followed by a newline, the end of the text, or
+another flag, continues the last Codex thread this Claude session started;
+`--resume <thread id>` or `--resume=<thread id>` continues that thread instead. A word after
+`--resume` on the same line is always read as the thread id, not as the start of the question,
+so the bare form needs a line of its own, or `--model` or `--timeout` directly after it. See
+"Following up" below for what `--resume` does and how it fails. `do` takes no flags:
+everything after the command is the request.
+
+`--timeout <seconds>`, on `ask` and `review`, is a whole number from 1 to 3600; any other
+value, or a second `--timeout`, is refused before Codex starts. It replaces the sixty-minute
+limit on the Codex turn for that call only. It bounds the turn, not the whole call: the local
+git checks come before the turn, and stopping Codex at the deadline can take up to ten more
+seconds. The flag is not passed to Codex, so the `requested:` line does not show it.
 
 Each result starts with `requested: codex ...`, the exact command that ran, and the working
 directory, and ends with `status: ...`, one of four words, on a line of its own after
@@ -143,8 +153,8 @@ result looks wrong, run `/codex-lite:setup`.
   Codex config is not read. `do` has no model flag.
 - Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
   same files.
-- A run is stopped after sixty minutes. The command files ask for the Bash tool's longest
-  timeout, ten minutes. Claude Code moves a call that passes it to the background, where the
+- A run is stopped after 60 minutes unless `--timeout` says otherwise. The command files ask
+  for the Bash tool's longest timeout, ten minutes. Claude Code moves a call that passes it to the background, where the
   run finishes and its result arrives as a task notification. If you set
   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, Claude Code ends the call at its timeout instead,
   so no run can pass ten minutes.
@@ -174,7 +184,7 @@ To continue a Codex thread, run `ask` again with `--resume`. Give the thread id 
 result's `thread` line, as `--resume <thread id>` or `--resume=<thread id>`, or leave it out and
 put a bare `--resume` on its own line before the question: that continues the last thread this
 Claude session started, whichever command started it. A bare `--resume` must end its line, or
-come directly before `--model`, because any word after it on the same line is read as the
+come directly before `--model` or `--timeout`, because any word after it on the same line is read as the
 thread id instead; a word that is not a valid id (one with a `;` or a `?`, for example) is
 refused before Codex runs. For example:
 
@@ -274,7 +284,7 @@ Test-only environment variables, read once at startup:
 
 - `CODEX_LITE_CODEX_BIN`: path to the Codex executable.
 - `CODEX_LITE_TIMEOUT_MS`: replaces the sixty-minute run limit and the thirty-second limit on
-  every other process.
+  every other process. An `ask` or `review` `--timeout` still wins for the Codex turn.
 - `CODEX_LITE_PROBE_TARGET`: the file the sandbox probe tries to write outside the working
   directory. Defaults to `~/.codex-lite-sandbox-probe-<pid>`, one file per run.
 

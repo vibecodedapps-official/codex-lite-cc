@@ -199,15 +199,26 @@ export function windowsSandboxSetting(toml) {
   return undefined;
 }
 
+// --timeout <seconds>, for ask and review: bounds the Codex turn. 3600 keeps the fixed limit's maximum.
+const seconds = (v) => {
+  if (typeof v !== 'string' || !/^[1-9][0-9]*$/.test(v) || Number(v) > 3600) {
+    throw new Error(`--timeout ${JSON.stringify(v ?? '')} is not a whole number of seconds from 1 to 3600; refused`);
+  }
+  return Number(v);
+};
+
 // Splitting on whitespace is safe only because review takes no free text. Adding free text needs a different format.
 export function parseReviewArgs(text) {
   const args = text.trim() ? text.trim().split(/\s+/) : [];
-  const { values } = parseArgs({ args, options: { base: { type: 'string' }, model: { type: 'string' } }, strict: true, allowPositionals: false });
-  for (const [name, v] of Object.entries(values)) plain(`--${name}`, v);
-  return { base: values.base, model: values.model };
+  // parseArgs keeps the last of two values silently; ask refuses a second, so review does too.
+  if (args.filter((a) => a === '--timeout' || a.startsWith('--timeout=')).length > 1) throw new Error('--timeout given more than once; refused');
+  const { values } = parseArgs({ args, options: { base: { type: 'string' }, model: { type: 'string' }, timeout: { type: 'string' } },
+    strict: true, allowPositionals: false });
+  for (const name of ['base', 'model']) if (values[name] !== undefined) plain(`--${name}`, values[name]);
+  return { base: values.base, model: values.model, timeout: values.timeout === undefined ? undefined : seconds(values.timeout) };
 }
 
-// Only leading --model and --resume are options, in either order, each at most once: ask's text is free, so either
+// Only leading --model, --resume and --timeout are options, in any order, each at most once: ask's text is free, so either
 // spelling later on is part of the question. Each match consumes its value and the one delimiter after it (space,
 // tab or newline), so the question is exactly what is left, kept verbatim. Whitespace before an option is skipped,
 // so extra spaces or lines between the two options do not turn the second into question text.
@@ -215,9 +226,13 @@ function matchModel(s) {
   const m = /^\s*--model(?:=(\S*)|\s+(\S*)|$)/.exec(s);
   return m && { value: plain('--model', m[1] ?? m[2] ?? ''), rest: s.slice(m[0].length + 1) };
 }
+function matchTimeout(s) {
+  const m = /^\s*--timeout(?:=(\S*)|\s+(\S*)|$)/.exec(s);
+  return m && { value: seconds(m[1] ?? m[2] ?? ''), rest: s.slice(m[0].length + 1) };
+}
 
 // --resume=<id> or --resume <id> (same line): explicit id, checked against THREAD_ID. --resume followed by a
-// newline, end of text, or another option (--resume --model x): bare, resumed id comes from the saved thread file.
+// newline, end of text, or another option (--resume --model x, --resume --timeout 5): bare, resumed id comes from the saved thread file.
 function matchResume(s) {
   const m = /^\s*--resume(?=[=\s]|$)/.exec(s);
   if (!m) return null;
@@ -232,12 +247,12 @@ function matchResume(s) {
   const nl = /^\r?\n/.exec(after);
   if (after === '' || nl) return { value: true, rest: s.slice(m[0].length + sp.length + (nl ? nl[0].length : 0)) };
   const token = /^\S*/.exec(after)[0];
-  if (/^--(?:model|resume)(?:=|$)/.test(token)) return { value: true, rest: s.slice(m[0].length + sp.length) };
+  if (/^--(?:model|resume|timeout)(?:=|$)/.test(token)) return { value: true, rest: s.slice(m[0].length + sp.length) };
   return { value: checkId(token), rest: s.slice(m[0].length + sp.length + token.length + 1) };
 }
 
 export function parseAskArgs(text) {
-  let model, resume, s = text;
+  let model, resume, timeout, s = text;
   for (;;) {
     const m = matchModel(s);
     if (m) {
@@ -249,7 +264,12 @@ export function parseAskArgs(text) {
       if (resume !== undefined) throw new Error('--resume given more than once; refused');
       ({ value: resume, rest: s } = r); continue;
     }
+    const t = matchTimeout(s);
+    if (t) {
+      if (timeout !== undefined) throw new Error('--timeout given more than once; refused');
+      ({ value: timeout, rest: s } = t); continue;
+    }
     break;
   }
-  return { model, resume, question: s };
+  return { model, resume, timeout, question: s };
 }
