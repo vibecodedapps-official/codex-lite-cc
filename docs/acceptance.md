@@ -2,11 +2,11 @@
 
 These checks need a live Claude Code session, a real Codex CLI, or both, so the automated
 tests cannot run them. They are not a release step: a release needs a green CI run, which
-covers macOS, Linux and Windows, a version bump and a changelog entry. Run items 1 to 8, and
-17, when the installed Codex version differs from the one the test suite's fake Codex
+covers macOS, Linux and Windows, a version bump and a changelog entry. Run items 1 to 8, 17
+and 18 when the installed Codex version differs from the one the test suite's fake Codex
 reproduces, or when a change alters how a request reaches Codex, the sandbox flags or the
-footer, and add a row to the record at the end when you do. Item 17 sits at the end of the
-list, under the later heading, only so the earlier item numbers stay the same.
+footer, and add a row to the record at the end when you do. Items 17 and 18 sit at the end of
+the list, under the later heading, only so the earlier item numbers stay the same.
 
 Use scratch state throughout: a scratch `CODEX_HOME` holding a copy of your Codex config, a
 scratch git repository, and a scratch `CLAUDE_CONFIG_DIR` seeded with a copy of your real
@@ -125,6 +125,18 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     for both runs is `codex exec resume <id> ...` with `sandbox_mode="read-only"`, and that
     Codex's answer shows it remembers the earlier turn. In a fresh session with no saved thread
     id, confirm a bare `--resume` is refused before Codex runs.
+
+18. **Status line and `--timeout`.** Through the real CLI, run `ask --timeout 1` with a
+    question: the result must end with `timed out after 1 s` in the failure line and
+    `status: timeout` as its last line. This proves cancellation at startup, not the
+    termination of a long-running turn, so run it a second time with a longer timeout, such as
+    `--timeout 30`, against a task that makes Codex run shell commands for longer than that,
+    and confirm the turn ends at the deadline with `status: timeout` and its process group is
+    gone. Through Claude Code, confirm that a typed `/codex-lite:ask --timeout 5 ...` and a
+    model-invoked `ask` with `--timeout` both reach the request file with the flag, that a
+    resumed `ask` (`--resume` with `--timeout`) honours it, and that the `status:` line arrives
+    verbatim in the forwarded output and in a background-task notification. The cut-off case
+    from item 14, a call ended by the Bash tool's timeout, must show no `status:` line.
 
 ## Record
 
