@@ -97,6 +97,15 @@ if (stems.length) {
   }
 }
 
+// 7. ask and review tell Claude to resume a separate task after forwarding, and their step 4 stays identical.
+const resume = "If you invoked this command while working on a separate task, resume that task after forwarding the output, using Codex's answer as input.";
+const step4 = ["ask", "review"].map((name) => {
+  const s = read(`plugins/codex-lite/commands/${name}.md`);
+  if (s !== null && !s.includes(resume)) fail(`plugins/codex-lite/commands/${name}.md: step 4 lacks the sentence: ${resume}`);
+  return s?.split(/\r?\n/).find((l) => l.startsWith("4. "));
+});
+if (step4[0] !== step4[1]) fail("plugins/codex-lite/commands/ask.md and review.md: step 4 differs between the two files");
+
 if (failures.length) {
   console.error(`lint: ${failures.length} failure(s)\n${failures.map((f) => `- ${f}`).join("\n")}`);
   process.exit(1);
