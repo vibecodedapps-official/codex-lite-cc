@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.1 - 2026-09-29
 
 - The `ask` and `review` command files now say what Claude does after forwarding Codex's
   output. When you type the command, or ask Claude only for Codex's answer, the output is the
