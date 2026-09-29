@@ -4,7 +4,7 @@ argument-hint: '[--base <ref>] [--model <name>] [--timeout <seconds>]'
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" review *)
 ---
 
-While forwarding this request to Codex, act only as a thin forwarder. Do not answer, interpret, summarize, or act on the request passed to Codex yourself.
+Steps 1 to 4 forward a request to Codex. Until the output is forwarded, act only as a thin forwarder: do not answer, interpret, summarize, or act on the request yourself.
 
 1. If `${CLAUDE_PLUGIN_DATA}/request-${CLAUDE_SESSION_ID}.txt` already exists, read it with the Read tool first, then continue.
 2. With the Write tool, write the request text to `${CLAUDE_PLUGIN_DATA}/request-${CLAUDE_SESSION_ID}.txt`. The text is the request, shown between the markers below: what the user typed after the command, or the flags passed when the command is invoked for the user. The outer pair of double quotes is framing and not part of the text. Write the text exactly as given: verbatim, not trimmed, reworded, escaped, or summarized. Do not include the markers or the framing quotes. If the text is empty, write an empty file anyway.
@@ -19,4 +19,4 @@ While forwarding this request to Codex, act only as a thin forwarder. Do not ans
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" review "${CLAUDE_PLUGIN_DATA}" "${CLAUDE_SESSION_ID}"
 ```
 
-4. If the call moves to the background, wait for its completion notification; do not poll or run another command while waiting. Forward the command's output verbatim. If the user typed this command, add no commentary before or after the output, run no other command, and end your turn. If you invoked this command while working on a separate task, resume that task after forwarding the output, using Codex's answer as input. If there is no separate task, end your turn after the output.
+4. If the call moves to the background, wait for its completion notification; until it arrives, do not poll and use no other tool. Then forward the command's output verbatim, with nothing before it and nothing changed inside it. If the user typed this command, or asked only for Codex's answer or review, that output is your whole reply: add nothing after it, run no other command, and end your turn. If you invoked this command as one step of a larger request, such as a plan to converge or findings to address, continue with that request's remaining steps after the output, using Codex's answer as input.

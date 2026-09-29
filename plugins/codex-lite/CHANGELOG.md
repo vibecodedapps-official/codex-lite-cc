@@ -2,12 +2,12 @@
 
 ## Unreleased
 
-- The `ask` and `review` command files now say what Claude does after the output when it
-  invoked the command itself during a separate task: forward the output verbatim, then resume
-  that task using Codex's answer. When you type the command, it is unchanged: the output is
-  the whole reply and the turn ends. Before, the text said to add nothing and run no other
-  command, which could read as ending the turn even when Claude had called the command in
-  the middle of a larger task.
+- The `ask` and `review` command files now say what Claude does after forwarding Codex's
+  output. When you type the command, or ask Claude only for Codex's answer, the output is the
+  whole reply and the turn ends, as before. When Claude invoked the command as one step of a
+  larger request, it forwards the output verbatim and then continues that request using
+  Codex's answer. Before, the text said to add nothing and run no other command in every
+  case, which could read as ending the turn in the middle of a larger request.
 
 ## 0.7.0 - 2026-09-28
 

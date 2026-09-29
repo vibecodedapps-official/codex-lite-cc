@@ -121,8 +121,9 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     function to math.mjs with a test, review it with codex, then converge", a prompt that
     names its task and no model. The forwarded result must end with `status: ok` before the
     continuation is judged. After Codex's output, Claude must go on to converge (revise the
-    plan) in the same turn, with no further prompt. A check that compares the output must
-    compare only the forwarded part, since Claude may keep working after it.
+    plan) with no further prompt from you: in the same turn, or, if the call moved to the
+    background, in the turn its completion notification starts. A check that compares the
+    output must compare only the forwarded part, since Claude may keep working after it.
 
 17. **Resume by hand.** Run a real `/codex-lite:ask` with a question, and take the thread id
     from the result's `thread` line. In the same session, run `/codex-lite:ask` again with

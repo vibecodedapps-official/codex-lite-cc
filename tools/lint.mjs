@@ -97,15 +97,20 @@ if (stems.length) {
   }
 }
 
-// 7. ask and review tell Claude to resume a separate task after forwarding, and their step 4 stays identical.
-const resume = "If you invoked this command while working on a separate task, resume that task after forwarding the output, using Codex's answer as input.";
+// 7. ask and review say, in step 4, when the output is the whole reply and when Claude continues, and their step 4 stays identical.
+const endTurn = "that output is your whole reply: add nothing after it, run no other command, and end your turn.";
+const resume = "If you invoked this command as one step of a larger request, such as a plan to converge or findings to address, continue with that request's remaining steps after the output, using Codex's answer as input.";
 const step4 = ["ask", "review"].map((name) => {
   const s = read(`plugins/codex-lite/commands/${name}.md`);
-  const line = s?.split(/\r?\n/).find((l) => l.startsWith("4. "));
-  if (s !== null && !line?.includes(resume)) fail(`plugins/codex-lite/commands/${name}.md: step 4 lacks the sentence: ${resume}`);
-  return line;
+  if (s === null) return null;
+  // Step 4 runs from its "4. " line to the next blank line, joined, so a wrapped step still matches.
+  const text = s.match(/^4\. .*(?:\r?\n(?!\s*\r?$).*)*/m)?.[0].replace(/\s*\r?\n\s*/g, " ") ?? "";
+  for (const want of [endTurn, resume]) {
+    if (!text.includes(want)) fail(`plugins/codex-lite/commands/${name}.md: step 4 lacks the sentence: ${want}`);
+  }
+  return text;
 });
-if (step4[0] !== step4[1]) fail("plugins/codex-lite/commands/ask.md and review.md: step 4 differs between the two files");
+if (step4.every((t) => t !== null) && step4[0] !== step4[1]) fail("plugins/codex-lite/commands/ask.md and review.md: step 4 differs between the two files");
 
 if (failures.length) {
   console.error(`lint: ${failures.length} failure(s)\n${failures.map((f) => `- ${f}`).join("\n")}`);
