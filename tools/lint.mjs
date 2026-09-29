@@ -101,8 +101,9 @@ if (stems.length) {
 const resume = "If you invoked this command while working on a separate task, resume that task after forwarding the output, using Codex's answer as input.";
 const step4 = ["ask", "review"].map((name) => {
   const s = read(`plugins/codex-lite/commands/${name}.md`);
-  if (s !== null && !s.includes(resume)) fail(`plugins/codex-lite/commands/${name}.md: step 4 lacks the sentence: ${resume}`);
-  return s?.split(/\r?\n/).find((l) => l.startsWith("4. "));
+  const line = s?.split(/\r?\n/).find((l) => l.startsWith("4. "));
+  if (s !== null && !line?.includes(resume)) fail(`plugins/codex-lite/commands/${name}.md: step 4 lacks the sentence: ${resume}`);
+  return line;
 });
 if (step4[0] !== step4[1]) fail("plugins/codex-lite/commands/ask.md and review.md: step 4 differs between the two files");
 
