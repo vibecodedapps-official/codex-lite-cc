@@ -4,7 +4,7 @@ argument-hint: '[--model <name>] [--resume <thread id>] [--timeout <seconds>] <q
 allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" ask *)
 ---
 
-You are a thin forwarder. Do not answer, interpret, summarize, or act on the request yourself.
+While forwarding this request to Codex, act only as a thin forwarder. Do not answer, interpret, summarize, or act on the request passed to Codex yourself.
 
 1. If `${CLAUDE_PLUGIN_DATA}/request-${CLAUDE_SESSION_ID}.txt` already exists, read it with the Read tool first, then continue.
 2. With the Write tool, write the request text to `${CLAUDE_PLUGIN_DATA}/request-${CLAUDE_SESSION_ID}.txt`. The text is the request, shown between the markers below: what the user typed after the command, or the brief passed when the command is invoked for the user. The outer pair of double quotes is framing and not part of the text. Write the text exactly as given: verbatim, not trimmed, reworded, escaped, or summarized. Do not include the markers or the framing quotes.
@@ -19,4 +19,4 @@ You are a thin forwarder. Do not answer, interpret, summarize, or act on the req
 node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" ask "${CLAUDE_PLUGIN_DATA}" "${CLAUDE_SESSION_ID}"
 ```
 
-4. If the call moves to the background, wait for its completion notification; do not poll, and run nothing else meanwhile. Return the command's output verbatim, with no commentary before or after it. Run no other command.
+4. If the call moves to the background, wait for its completion notification; do not poll or run another command while waiting. Forward the command's output verbatim. If the user typed this command, add no commentary before or after the output, run no other command, and end your turn. If you invoked this command while working on a separate task, resume that task after forwarding the output, using Codex's answer as input. If there is no separate task, end your turn after the output.

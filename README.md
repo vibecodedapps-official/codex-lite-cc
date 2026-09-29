@@ -57,6 +57,8 @@ passes: a question for `ask`, flags for `review`. In auto mode this runs with no
 `ask` is for questions, plan critiques, second opinions and follow-ups. `review` is only for
 code changes: the uncommitted working tree, or the diff against a base ref. A plan written in
 the conversation is not a diff, so "review this plan with Codex" goes to `ask`.
+When Claude invokes `ask` or `review` during a larger task, it forwards Codex's output and
+then carries on with that task; when you type the command, the output is the whole reply.
 `do` and `setup` are hidden from Claude and run only when you type the command. Asked in plain
 words to have Codex change files, Claude tells you to type `/codex-lite:do <task>`.
 
