@@ -104,8 +104,13 @@ must be absolute and an existing directory inside a git repository
 (`git -C <path> rev-parse --show-toplevel` succeeds), or `implement` refuses before Codex runs.
 Codex then runs in that directory, and the write sandbox is bounded to it; without `--cwd` it
 runs in the shell's directory, as `do` does. This is for a worktree, or another repository of
-a multi-repository run, whose checkout is not the session's directory. The tree state in the
-footer still covers the whole repository, as for `do`. There is no `--resume`: every call
+a multi-repository run, whose checkout is not the session's directory. Note what that means:
+the invoking skill, not you, chooses the repository Codex writes in, and nothing ties it to
+the session's repository; any git checkout on disk is accepted. The write sandbox, the
+no-commit rule and the tree footer apply there as they do here, and a wrong choice is undone
+with git. The tree state in the footer still covers the whole repository, as for `do`. Its
+value has trailing spaces and tabs dropped, so a request line that ends with a space still
+names the path. There is no `--resume`: every call
 starts a new thread, and a `--resume` in the text is part of the task. The task is the text
 after the options; an empty task is refused. For example:
 

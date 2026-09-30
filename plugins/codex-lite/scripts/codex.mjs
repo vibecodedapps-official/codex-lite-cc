@@ -276,10 +276,10 @@ export function parseAskArgs(text) {
   return { model, resume, timeout, question: s };
 }
 
-// --cwd <path> or --cwd=<path>, the last option of implement: the value is the rest of its line, verbatim (spaces and
-// backslashes kept; a trailing carriage return belongs to the line end), so the task starts on the next line.
+// --cwd <path> or --cwd=<path>, the last option of implement: the value is the rest of its line (internal spaces and
+// backslashes kept; trailing spaces and tabs and a carriage return belong to the line end), so the task starts on the next line.
 function matchCwd(s) {
-  const m = /^\s*--cwd(?:=|[ \t]+|(?=\r?\n|$))([^\n]*?)\r?(?:\n|$)/.exec(s);
+  const m = /^\s*--cwd(?:=|[ \t]+|(?=\r?\n|$))([^\n]*?)[ \t]*\r?(?:\n|$)/.exec(s);
   if (m && !isAbsolute(m[1])) throw new Error(`--cwd ${JSON.stringify(m[1])} is empty or not an absolute path; refused`);
   return m && { value: m[1], rest: s.slice(m[0].length) };
 }

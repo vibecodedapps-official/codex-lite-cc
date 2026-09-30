@@ -15,7 +15,10 @@
   after the `--cwd` line is refused. The path must be absolute and an existing directory inside
   a git repository, or the command refuses before Codex runs; Codex runs there and its write
   sandbox is bounded to it, while the tree footer stays repository-wide, as for `do`. This
-  serves runs whose checkout is not the session's directory, such as a worktree. There is no
+  serves runs whose checkout is not the session's directory, such as a worktree. It also
+  means the invoking skill chooses the repository Codex writes in: any git checkout on disk
+  is accepted, and the README says so. Trailing spaces and tabs on the `--cwd` line are
+  dropped. There is no
   `--resume`: every call starts a new thread, whose id is saved as for `do`, so `ask --resume`
   can question it read-only. A `--resume` in the text is task text, and an empty task is
   refused. `do` is unchanged: hidden from Claude, typed by the user, no options.

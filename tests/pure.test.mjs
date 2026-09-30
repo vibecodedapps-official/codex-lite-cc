@@ -574,10 +574,11 @@ test('implement arguments: a relative or empty --cwd is refused', () => {
   assert.throws(() => parseImplementArgs('--cwd=\ngo'), /--cwd "" is empty or not an absolute path; refused$/);
 });
 
-test('implement arguments: a --cwd with spaces or backslashes is kept verbatim', () => {
+test('implement arguments: a --cwd with spaces or backslashes is kept, trailing spaces and tabs dropped', () => {
   assert.deepEqual(parseImplementArgs('--cwd /tmp/a b\ngo'), { ...NONE, cwd: '/tmp/a b', task: 'go' });
   assert.deepEqual(parseImplementArgs('--cwd /tmp/x\\y\r\ngo'), { ...NONE, cwd: '/tmp/x\\y', task: 'go' });
-  assert.deepEqual(parseImplementArgs('--cwd=/tmp/a b \ngo'), { ...NONE, cwd: '/tmp/a b ', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--cwd=/tmp/a b \ngo'), { ...NONE, cwd: '/tmp/a b', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--cwd /tmp/a \t\r\ngo'), { ...NONE, cwd: '/tmp/a', task: 'go' });
 });
 
 test('implement arguments: --resume is task text, and --cwd with no task leaves an empty task', () => {
