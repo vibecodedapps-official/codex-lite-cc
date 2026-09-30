@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.2 - 2026-09-30
 
 - The `ask`, `review` and `do` command files start with the Write of the request file and
   read it only when that Write fails on a leftover file. Any other failed Write, or a failed
