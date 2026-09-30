@@ -1,7 +1,7 @@
 # codex-lite-cc
 
 A small Claude Code plugin that hands a task to the Codex CLI, runs it once, and prints what
-it said. Four commands, one entry script, one prompt hook, no daemon, no background jobs of its own.
+it said. Five commands, one entry script, one prompt hook, no daemon, no background jobs of its own.
 
 ## Install
 
@@ -31,7 +31,7 @@ Installs track `main`. Every merge to `main` bumps the version.
 
   Use `"elevated"` instead if you have admin rights and have accepted Codex's one-time
   elevated sandbox setup. Without this setting, Codex's sandbox denies every write and every
-  command, even inside the working directory. `do` refuses to run, and `ask` and `review`
+  command, even inside the working directory. `do` and `implement` refuse to run, and `ask` and `review`
   run with a warning. `/codex-lite:setup` reports the value it found. The plugin also reads
   `windows.sandbox = "..."` at the top level of the file and `windows = { sandbox = "..." }`.
 
@@ -49,6 +49,7 @@ every run and probe, because `--ignore-user-config` would otherwise drop it.
 | `/codex-lite:ask [--model <name>] [--resume <thread id>] [--timeout <seconds>] <question>`, or `--resume` alone on the first line and the question below it | `codex exec <flags> -`, or `codex exec resume <thread id> <flags> -` with `--resume`, plus `--model <name>` if given, the question on stdin | `read-only` |
 | `/codex-lite:review [--base <ref>] [--model <name>] [--timeout <seconds>]` | `codex exec review <flags>` with `--uncommitted`, or `--base <ref>` (the net difference from the merge base of `<ref>` and `HEAD` to the working tree, tracked files only), plus `--model <name>` if given | `read-only` |
 | `/codex-lite:do <task>` | `codex exec <flags> -`, the task on stdin | `workspace-write` |
+| `/codex-lite:implement [--model <name>] [--timeout <seconds>] [--cwd <absolute path>] <task>`, with `--cwd` last and alone on its line, the task below it | as `do`, plus `--model <name>` if given, run in `--cwd` if given | `workspace-write` |
 | `/codex-lite:setup` | `codex --version`, `codex login status`, and the sandbox probe; on Windows it also reports the Codex sandbox mode | `workspace-write`, probe only |
 
 `ask` and `review` are visible to Claude, so a request in plain words such as "dispatch Codex
@@ -60,10 +61,19 @@ the conversation is not a diff, so "review this plan with Codex" goes to `ask`.
 When Claude invokes `ask` or `review` as one step of a larger request, it forwards Codex's
 output and then continues that request; when you type the command, or ask only for Codex's
 answer, the output is the whole reply.
-`do` and `setup` are hidden from Claude and run only when you type the command. Asked in plain
-words to have Codex change files, Claude tells you to type `/codex-lite:do <task>`.
+`implement` is visible to Claude too, but only for a change that a skill you invoked delegates
+to Codex as one of its steps. A request typed in plain words, even one that names Codex, is
+not a delegation: asked to have Codex change files, Claude tells you to type
+`/codex-lite:do <task>`.
+`do` and `setup` are hidden from Claude and run only when you type the command.
 
-`ask`, `review` and `do` refuse to run outside a git repository. `review` also refuses, before
+This is a tradeoff. Before `implement`, no Codex write happened unless you typed a command. Now
+a skill can start a write turn, so writes are no longer gated on a typed command. In default
+permission mode Claude Code still asks before the Skill call; in auto mode, as observed for
+`ask` and `review`, it does not ask. `implement` runs the same probe, sandbox and footer as
+`do`, and cannot reach the network or, with one exception, commit (see the limits below).
+
+`ask`, `review`, `do` and `implement` refuse to run outside a git repository. `review` also refuses, before
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
 there is nothing to review. `review` takes `--base <ref>`, `--model <name>` and
 `--timeout <seconds>`, each at most once; a repeated flag is refused before Codex starts.
@@ -84,7 +94,27 @@ so the bare form needs a line of its own, or `--model` or `--timeout` directly a
 "Following up" below for what `--resume` does and how it fails. `do` takes no flags:
 everything after the command is the request.
 
-`--timeout <seconds>`, on `ask` and `review`, is a whole number from 1 to 3600; any other
+`implement` takes three optional leading options. `--model <name>` (or `--model=<name>`) and
+`--timeout <seconds>` (or `--timeout=<seconds>`) come first, in either order, each at most
+once, and mean what they do for `ask`. `--cwd <absolute path>` (or `--cwd=<absolute path>`)
+comes last and is alone on its line: its value is the rest of the line, verbatim, so a path with
+spaces or Windows backslashes is carried intact, and the task starts on the next line. A
+`--model`, `--timeout` or second `--cwd` directly after the `--cwd` line is refused. The path
+must be absolute and an existing directory inside a git repository
+(`git -C <path> rev-parse --show-toplevel` succeeds), or `implement` refuses before Codex runs.
+Codex then runs in that directory, and the write sandbox is bounded to it; without `--cwd` it
+runs in the shell's directory, as `do` does. This is for a worktree, or another repository of
+a multi-repository run, whose checkout is not the session's directory. The tree state in the
+footer still covers the whole repository, as for `do`. There is no `--resume`: every call
+starts a new thread, and a `--resume` in the text is part of the task. The task is the text
+after the options; an empty task is refused. For example:
+
+```
+/codex-lite:implement --timeout 900 --cwd /work/my repo-wt
+Add a subtract function to math.mjs, with a test.
+```
+
+`--timeout <seconds>`, on `ask`, `review` and `implement`, is a whole number from 1 to 3600; any other
 value, or a second `--timeout`, is refused before Codex starts. It replaces the sixty-minute
 limit on the Codex turn for that call only. It bounds the turn, not the whole call: the local
 git checks come before the turn, and stopping Codex at the deadline can take up to ten more
@@ -94,24 +124,24 @@ Each result starts with `requested: codex ...`, the exact command that ran, and 
 directory, and ends with `status: ...`, one of four words, on a line of its own after
 everything else. `status: refused` means the plugin stopped before attempting the task turn:
 bad arguments, nothing to review, not a repository, a bad or missing request file, or a failed
-`do` probe. `status: timeout` means the turn was attempted and its deadline ended it.
+`do` or `implement` probe. `status: timeout` means the turn was attempted and its deadline ended it.
 `status: failed` means the turn was attempted and something else went wrong: Codex could not
-start, exited non-zero, sent no final message or reported an error, or the `do` tree state
+start, exited non-zero, sent no final message or reported an error, or the `do` or `implement` tree state
 could not be read; a crash of the plugin itself, before or after the turn, is `failed` too. `status: ok` means the run and all its reporting completed, not that a
 review found nothing. The exit code is 0 for `ok` and 1 otherwise. A result with no `status:`
 line was cut off, by the Bash tool's timeout or a kill, and is incomplete. The plugin does not
 tell model, login or sandbox failures apart: Codex reports them as prose, which the
 `codex-lite: the run failed:` line carries. `setup` prints no status line.
 
-`ask` and `review` run from the top of the repository, whatever directory the shell is in; `do` runs from the shell's directory, which bounds where it can write. `ask` and
-`review` also print a line saying the sandbox has no network. `do` also prints `HEAD` before
+`ask` and `review` run from the top of the repository, whatever directory the shell is in; `do` and `implement` run from the shell's directory, or from `--cwd` for `implement`, which bounds where they can write. `ask` and
+`review` also print a line saying the sandbox has no network. `do` and `implement` also print `HEAD` before
 and after the run and the working tree state after it
 (`git status --porcelain --untracked-files=all --ignored`, cut at fifty lines). It states what
 is there, not what changed; reading it is up to you.
 
 ## The sandbox probe
 
-Before every `do`, and in `setup`, the plugin checks that the write sandbox actually confines
+Before every `do` and `implement`, and in `setup`, the plugin checks that the write sandbox actually confines
 writes:
 
 1. The plugin writes and removes a file in your home directory itself, so it knows that path
@@ -121,7 +151,7 @@ writes:
 3. `codex sandbox` tries to write the home directory file. This must be denied, with no file
    created.
 
-If any check fails, `do` refuses and says which one and the error it saw. From your home
+If any check fails, `do` and `implement` refuse and say which one and the error it saw. From your home
 directory, or a directory above it, the probe cannot work and the plugin says so rather than
 claiming the host cannot sandbox.
 
@@ -138,7 +168,7 @@ result looks wrong, run `/codex-lite:setup`.
   its shell. This was seen on 2026-09-23 with codex-cli 0.156.1 and PowerShell 7 installed
   from the Microsoft Store: every command failed with "CreateProcessAsUserW failed". With
   `"elevated"` the same run worked.
-- `do` has no network. It cannot install packages, fetch dependencies or call an API.
+- `do` and `implement` have no network. They cannot install packages, fetch dependencies or call an API.
 - `ask` and `review` have no network either, so Codex cannot read an issue, a pull request or a
   web page, and the commands forward a request unchanged without fetching anything. A typed
   `/codex-lite:ask Evaluate issue #12` sends `#12` to Codex as it is. Fetch it before you run
@@ -149,14 +179,14 @@ result looks wrong, run `/codex-lite:setup`.
   repository-relative path. With no ignored directory, paste the fetched text into the
   question instead. When Claude invokes `ask` itself, its description tells Claude to do
   this first.
-- `do` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
+- `do` and `implement` cannot commit. Codex's sandbox denies writes to `.git`, so a commit Codex attempts
   fails and `HEAD` stays where it was. Commit the result yourself. The exception is a
   repository under the system temporary directory, which the sandbox leaves writable: there
   a commit succeeds, and the footer's `HEAD` line shows it. Seen on macOS with a repository
   under `/tmp`.
-- `do`, and `ask` or `review` without `--model`, run on Codex's default model, because your
-  Codex config is not read. `do` has no model flag.
-- Two `do` runs in the same repository are not coordinated. Nothing stops them editing the
+- `do`, and `ask`, `review` or `implement` without `--model`, run on Codex's default model,
+  because your Codex config is not read. `do` has no model flag.
+- Two `do` or `implement` runs in the same repository are not coordinated. Nothing stops them editing the
   same files.
 - A run is stopped after 60 minutes unless `--timeout` says otherwise. The command files ask
   for the Bash tool's longest timeout, ten minutes. Claude Code moves a call that passes it to the background, where the
@@ -170,13 +200,14 @@ result looks wrong, run `/codex-lite:setup`.
 - Your request reaches Codex through two model steps: Claude writes it to a file, then runs
   the script, which sends the file to Codex. Delivery is verbatim on a best-effort basis; a
   very long paste could be altered and nothing detects it.
-- One call at a time per Claude session. Each session has one request file and one saved
+- One call at a time per Claude session, `implement` included. Each session has one request file and one saved
   thread file in the plugin's data directory, and the script deletes the request file when it
   reads it. A second call that starts before the first has read its request file can take or
   lose the other's request, and the saved thread is whichever run saved last; a failure to
   save it only warns.
 - `do` and `setup` set `disable-model-invocation`, which stops Claude from invoking them, not
-  from repeating their steps. Once a command has run in a session, Claude can write the
+  from repeating their steps. `implement` does not set it, so Claude can invoke it when a skill
+  delegates a change; see "Commands" for the tradeoff. Once a command has run in a session, Claude can write the
   request file and run the script itself when asked in plain words. In default permission
   mode Claude Code asks you before that Bash call.
 
@@ -207,11 +238,11 @@ refused before Codex runs. For example:
 What about the second objection?
 ```
 
-After every successful `ask`, `review` or `do`, the plugin saves that run's thread id to
+After every successful `ask`, `review`, `do` or `implement`, the plugin saves that run's thread id to
 `thread-<session id>.txt` in the plugin's data directory, next to the request file: one small
 file per Claude session, replaced each time a run succeeds. A failed run leaves it unchanged.
 A later bare `--resume` in the same session reads that file, so you never have to copy the id
-by hand. Resume always runs `read-only`, even if the thread came from `do`, because it takes
+by hand. Resume always runs `read-only`, even if the thread came from `do` or `implement`, because it takes
 its sandbox from the command line, not from how the thread started. A bare `--resume` is
 refused before Codex runs when the session has no saved thread id yet. A stale or unknown id,
 saved or typed, is not caught by the plugin; Codex itself refuses it, with its own "no rollout
@@ -226,10 +257,10 @@ terminal:
 codex exec resume <thread id> --json --ignore-user-config -c 'approval_policy="never"' -c 'sandbox_mode="read-only"' 'your follow-up here'
 ```
 
-It always requests `read-only`, even after `do`, because a pasted line runs without any of the
+It always requests `read-only`, even after `do` or `implement`, because a pasted line runs without any of the
 plugin's checks, in whatever directory you are in. To continue a write run, change
-`read-only` to `workspace-write`, and paste it from the directory the `do` result's `cwd:` line
-names. On Windows the line also carries the `-c 'windows.sandbox="<value>"'` the run used.
+`read-only` to `workspace-write`, and paste it from the directory the `do` or `implement` result's `cwd:` line
+names; after an `implement` run with `--cwd`, that is the `--cwd` directory. On Windows the line also carries the `-c 'windows.sandbox="<value>"'` the run used.
 
 Moving a Claude Code session into Codex is out of scope. Codex has its own importer for
 sessions from other agents; use that.
@@ -241,7 +272,8 @@ case, the hook adds a short routing note to Claude's context: use `ask` for ques
 critiques, `review` only for diffs, put options before the question in any order (a model
 choice as `--model <name>`, and for a follow-up in the same Codex thread `--resume <thread id>`
 or a bare `--resume` followed by a line break or another option), send file changes to
-`/codex-lite:do`, and do not run Codex directly. A prompt that starts with a slash command
+`/codex-lite:do`, except that a skill which delegates implementation to Codex uses
+`implement`, and do not run Codex directly. A prompt that starts with a slash command
 (a slash and a command name, then a space or the end) gets no note, whichever plugin the
 command belongs to, because a typed command already routes itself; a prompt that starts with
 an absolute path is not a command and gets the note. A prompt that does not
@@ -253,6 +285,10 @@ stop Claude from running Codex some other way.
 In auto mode, `ask` and `review` run with no approvals, whether you type the command or ask in
 plain words. This was seen on 2026-09-26 on Claude Code 2.1.280 in headless auto mode, for
 "dispatch codex to review my changes against main" and "ask codex what math.mjs exports".
+
+In auto mode, by inference from that observation for `ask` and `review`, `implement` invoked by a
+skill is not gated either; nobody has yet observed it, and item 19 of `docs/acceptance.md` is where
+it gets recorded. See the tradeoff under "Commands".
 
 In default mode, Claude Code asks before each step it does not trust: running a command Claude
 invoked on its own, writing the request file (it is under `~/.claude`, which Claude Code
@@ -296,7 +332,7 @@ Test-only environment variables, read once at startup:
 
 - `CODEX_LITE_CODEX_BIN`: path to the Codex executable.
 - `CODEX_LITE_TIMEOUT_MS`: replaces the sixty-minute run limit and the thirty-second limit on
-  every other process. An `ask` or `review` `--timeout` still wins for the Codex turn.
+  every other process. An `ask`, `review` or `implement` `--timeout` still wins for the Codex turn.
 - `CODEX_LITE_PROBE_TARGET`: the file the sandbox probe tries to write outside the working
   directory. Defaults to `~/.codex-lite-sandbox-probe-<pid>`, one file per run.
 

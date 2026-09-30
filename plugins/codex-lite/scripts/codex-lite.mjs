@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Entry: node codex-lite.mjs <review|ask|do> <dataDir> <sessionId>, or setup <dataDir>. Prints one result, exits 0 or 1.
+// Entry: node codex-lite.mjs <review|ask|do|implement> <dataDir> <sessionId>, or setup <dataDir>. Prints one result, exits 0 or 1.
 // Or node codex-lite.mjs hook, the UserPromptSubmit hook: reads the event on stdin, prints a routing note or nothing, exits 0.
 // The data directory arrives as an argument: inside the Bash tool the environment can carry another plugin's value.
 import { spawn } from 'node:child_process';
@@ -7,11 +7,11 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { NPM_WIN32, WINDOWS_SANDBOXES, buildArgv, decideProbe, parseAskArgs, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId,
+import { NPM_WIN32, WINDOWS_SANDBOXES, buildArgv, decideProbe, parseAskArgs, parseImplementArgs, parseReviewArgs, readStream, requestedLine, resumeLine, validateRequestId,
   validThreadId, windowsSandboxSetting } from './codex.mjs';
 
 const started = Date.now();
-// Test-only seams, read once. CODEX_LITE_TIMEOUT_MS replaces both deadlines below; an ask or review --timeout wins for the turn.
+// Test-only seams, read once. CODEX_LITE_TIMEOUT_MS replaces both deadlines below; an ask, review or implement --timeout wins for the turn.
 const { CODEX_LITE_CODEX_BIN, CODEX_LITE_TIMEOUT_MS, CODEX_LITE_PROBE_TARGET } = process.env;
 const override = Number(CODEX_LITE_TIMEOUT_MS) > 0 ? Number(CODEX_LITE_TIMEOUT_MS) : null;
 const TURN_MS = override ?? 60 * 60_000;
@@ -25,7 +25,7 @@ class Refusal extends Error {}
 const refuse = (message) => { throw new Refusal(message); };
 const secs = (ms) => `${ms / 1000} s`;
 const out = [];
-// The last line of every ask, review and do result, decided by phase: refused before the task turn is attempted, failed
+// The last line of every ask, review, do and implement result, decided by phase: refused before the task turn is attempted, failed
 // or timeout once it is, ok only when the run and all its reporting completed. Unset for setup, hook and unknown commands.
 let status;
 // One saved thread id per Claude session, so a bare --resume never picks up another session's thread.
@@ -233,7 +233,7 @@ function failures(r, ms) {
 
 async function main() {
   const [command, dataDir, id] = process.argv.slice(2);
-  if (!['review', 'ask', 'do', 'setup'].includes(command)) refuse(`unknown command ${JSON.stringify(command)}; expected review, ask, do or setup`);
+  if (!['review', 'ask', 'do', 'implement', 'setup'].includes(command)) refuse(`unknown command ${JSON.stringify(command)}; expected review, ask, do, implement or setup`);
   if (command !== 'setup') status = 'refused';
   if (typeof dataDir !== 'string' || !isAbsolute(dataDir)) refuse(`the plugin data directory must be an absolute path, not ${JSON.stringify(dataDir)}`);
   if (command === 'setup') return setup(dataDir);
@@ -241,8 +241,9 @@ async function main() {
   if (!validateRequestId(id)) refuse('the session id is missing or malformed, so no request file was opened');
   const text = takeRequest(dataDir, id);
   let args = {}, argv;
-  try { args = command === 'review' ? parseReviewArgs(text) : command === 'ask' ? parseAskArgs(text) : {}; } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
-  const input = command === 'ask' ? args.question : text;
+  try { args = command === 'review' ? parseReviewArgs(text) : command === 'ask' ? parseAskArgs(text) : command === 'implement' ? parseImplementArgs(text) : {}; } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
+  const input = command === 'ask' ? args.question : command === 'implement' ? args.task : text;
+  const writes = command === 'do' || command === 'implement';
   if (command !== 'review' && !input.trim()) refuse('the request is empty; nothing was sent to Codex');
   if (command === 'ask' && args.resume === true) {
     const file = threadFile(dataDir, id);
@@ -257,19 +258,19 @@ async function main() {
     args.resume = trimmed;
   }
   const win = windowsSandbox();
-  if (command === 'do' && win.problem) refuse(`do was not run: ${win.problem}`);
+  if (writes && win.problem) refuse(`${command} was not run: ${win.problem}`);
   try { argv = buildArgv(command, { ...args, windowsSandbox: win.value }); } catch (e) { refuse(`${command} arguments refused: ${e.message}`); }
   const codex = resolveCodex();
-  const here = process.cwd();
-  const top = await git(['rev-parse', '--show-toplevel'], here);
+  const here = args.cwd ?? process.cwd();
+  const top = await git(['-C', here, 'rev-parse', '--show-toplevel'], process.cwd());
   if (top.code !== 0) refuse(`not inside a git repository, so nothing was run (${top.stderr.trim()})`);
-  // ask and review run from the top, whatever directory the shell was left in; do keeps the shell's, which bounds its writes.
-  const cwd = command === 'do' ? here : join(top.stdout.trim());
+  // ask and review run from the top, whatever directory the shell was left in; do and implement keep the shell's, or implement's --cwd, which bounds their writes.
+  const cwd = writes ? here : join(top.stdout.trim());
   let before;
   if (command === 'review') await reviewChecks(args.base, cwd);
-  if (command === 'do') {
+  if (writes) {
     const p = await probe(codex, cwd, win.value).catch((e) => { if (e instanceof Refusal) return { reason: e.message }; throw e; });
-    if (!p.pass) refuse(`do was not run: ${p.reason}`);
+    if (!p.pass) refuse(`${command} was not run: ${p.reason}`);
     before = await head(cwd);
   }
   const reader = readStream();
@@ -282,10 +283,10 @@ async function main() {
   if (r.timedOut) status = 'timeout';
   out.push(requestedLine(argv), `cwd: ${cwd}`);
   if (win.problem) out.push(`codex-lite: warning: ${win.problem}`);
-  if (command !== 'do') out.push('network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages');
-  if (command === 'do') out.push('sandbox: workspace-write proven on this host before the run; the system temp directory stays writable');
+  if (!writes) out.push('network: none in the read-only sandbox; Codex cannot fetch issues, pull requests or pages');
+  if (writes) out.push('sandbox: workspace-write proven on this host before the run; the system temp directory stays writable');
   out.push('', ...(why.length ? [`codex-lite: the run failed: ${why.join('; ')}`, ...(r.stderr ? [r.stderr.replace(/\n$/, '')] : [])] : [r.finalMessage]), '');
-  if (command === 'do') {
+  if (writes) {
     try { out.push(...await treeFooter(cwd, before)); } catch (e) {
       if (!(e instanceof Refusal)) throw e;
       out.push(`codex-lite: ${e.message}`);
@@ -363,8 +364,8 @@ async function setup(dataDir) {
 const ROUTING = 'Use codex-lite for Codex requests: ask for questions, plan critiques, and second opinions; review only for working-tree or ' +
   'base-ref diffs. Put options before the question, in any order: an explicit model choice as --model <name>, and for a follow-up in ' +
   'the same Codex thread, --resume <thread id>, or a bare --resume followed by a line break or another option; the follow-up then needs ' +
-  'only the new question. For file changes, direct the user to /codex-lite:do <task>; for ' +
-  'setup checks, /codex-lite:setup. Do not invoke Codex directly.';
+  'only the new question. A skill that delegates implementation to Codex uses implement; for a plain request to change files, direct the user to ' +
+  '/codex-lite:do <task>; for setup checks, /codex-lite:setup. Do not invoke Codex directly.';
 
 // Plain stdout from a UserPromptSubmit hook becomes context for Claude. A typed slash command, of any plugin, already routes
 // itself: a slash, a command name, then a space or the end. A prompt starting with an absolute path (/Users/... or /tmp/x:)

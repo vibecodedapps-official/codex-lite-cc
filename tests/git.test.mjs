@@ -228,6 +228,43 @@ test('do from a subdirectory names it as cwd, probes under it, and lists the who
   assert.equal(r.status, 0);
 }));
 
+test('implement prints the do footer lines, passes --model, and sends only the task', spawning, withScratch((s) => {
+  const before = git(s.repo, 'rev-parse', '--short', 'HEAD').trim();
+  const r = run(s, 'implement', { request: '--model gpt-x\nfix it', env: { FAKE_CODEX: 'commits' } });
+  const after = git(s.repo, 'rev-parse', '--short', 'HEAD').trim();
+  assert.equal(calls(s).length, 3);
+  assert.deepEqual(calls(s)[2], ['exec', '--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"',
+    '--model', 'gpt-x', '-']);
+  assert.equal(stdin(s), 'fix it');
+  assert.equal(r.stdout, 'requested: codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="workspace-write" --model gpt-x -\n' +
+    `cwd: ${s.repo}\nsandbox: workspace-write proven on this host before the run; the system temp directory stays writable\n\nfake answer\n\n` +
+    `HEAD ${before} before, ${after} after\nworking tree after the run:\n  !! .env\nthread ${THREAD}\n${RESUME}\nstatus: ok\n`);
+  assert.equal(r.status, 0);
+  assert.deepEqual(probeLeftovers(s), [false, []]);
+}));
+
+test('implement --cwd to a subdirectory sets cwd and the probe there, and lists the whole repository from its top', spawning, withScratch((s) => {
+  const sub = siblings(s);
+  const before = git(s.repo, 'rev-parse', '--short', 'HEAD').trim();
+  const r = run(s, 'implement', { request: `--cwd ${sub}\ngo`, cwd: s.plain, env: { FAKE_CODEX: 'commits' } });
+  const after = git(s.repo, 'rev-parse', '--short', 'HEAD').trim();
+  assert.equal(calls(s)[0].at(-1).startsWith(`${s.repo}/a/.codex-lite-probe-`), true);
+  assert.deepEqual(cwds(s), [sub, sub, sub]);
+  assert.equal(r.stdout, 'requested: codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="workspace-write" -\n' +
+    `cwd: ${s.repo}/a\nsandbox: workspace-write proven on this host before the run; the system temp directory stays writable\n\nfake answer\n\n` +
+    `HEAD ${before} before, ${after} after\nworking tree after the run:\n   M b/file.txt\n  !! a/.env\nthread ${THREAD}\n${RESUME}\nstatus: ok\n`);
+  assert.equal(r.status, 0);
+}));
+
+test('implement --cwd naming a file or a missing path is refused with Codex never started', spawning, withScratch((s) => {
+  for (const path of [join(s.repo, 'tracked.txt'), join(s.root, 'missing')]) {
+    const r = run(s, 'implement', { request: `--cwd ${path}\ngo` });
+    assert.match(r.stdout, /^codex-lite: not inside a git repository, so nothing was run \(/, path);
+    assert.match(r.stdout, /\nstatus: refused\n$/, path);
+  }
+  assert.deepEqual(calls(s), []);
+}));
+
 test('do: a good run whose tree footer cannot be read ends with status: failed', spawning, withScratch((s) => {
   // Only the footer's git status passes --ignored; every other git call reaches the real git.
   const env = shims(s, `case "$*" in *--ignored*) echo 'fatal: footer broken' >&2; exit 1;; esac\n`);

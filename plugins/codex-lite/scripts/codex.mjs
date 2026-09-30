@@ -1,6 +1,7 @@
-// Pure half: inputs to argv arrays, bytes to a result. No filesystem, spawn, clock or environment.
+// Pure half: inputs to argv arrays, bytes to a result. No filesystem, spawn, clock or environment (node:path only tests a string's shape).
 // Errors and refusal reasons here carry no "codex-lite:" prefix; the entry script adds it once.
 import { StringDecoder } from 'node:string_decoder';
+import { isAbsolute } from 'node:path';
 import { parseArgs } from 'node:util';
 
 // Codex's Windows sandbox mode, when given, is passed on every sandboxed call: --ignore-user-config drops the user's own.
@@ -44,9 +45,9 @@ export function buildArgv(command, options = {}) {
     // Always read-only: resume takes its sandbox from the command line, not from what started the thread.
     argv = ['exec', 'resume', checkId(options.resume), ...turnPrefix('read-only', options.windowsSandbox),
       ...(options.model !== undefined ? ['--model', plain('--model', options.model)] : []), '-'];
-  } else if (command === 'ask' || command === 'do') {
+  } else if (command === 'ask' || command === 'do' || command === 'implement') {
     argv = ['exec', ...turnPrefix(command === 'ask' ? 'read-only' : 'workspace-write', options.windowsSandbox),
-      ...(command === 'ask' && options.model !== undefined ? ['--model', plain('--model', options.model)] : []), '-'];
+      ...(command !== 'do' && options.model !== undefined ? ['--model', plain('--model', options.model)] : []), '-'];
   } else if (command === 'version') argv = ['--version'];
   else if (command === 'login') argv = ['login', 'status'];
   else if (command === 'sandbox') {
@@ -273,4 +274,32 @@ export function parseAskArgs(text) {
     break;
   }
   return { model, resume, timeout, question: s };
+}
+
+// --cwd <path> or --cwd=<path>, the last option of implement: the value is the rest of its line, verbatim (spaces and
+// backslashes kept; a trailing carriage return belongs to the line end), so the task starts on the next line.
+function matchCwd(s) {
+  const m = /^\s*--cwd(?:=|[ \t]+|(?=\r?\n|$))([^\n]*?)\r?(?:\n|$)/.exec(s);
+  if (m && !isAbsolute(m[1])) throw new Error(`--cwd ${JSON.stringify(m[1])} is empty or not an absolute path; refused`);
+  return m && { value: m[1], rest: s.slice(m[0].length) };
+}
+
+// --model and --timeout as for ask, then --cwd last; a --model, --timeout or second --cwd right after the --cwd line is refused;
+// --resume, and anything else, is task text.
+const dup = (name) => { throw new Error(`--${name} given more than once; refused`); };
+export function parseImplementArgs(text) {
+  let model, timeout, cwd, s = text, m;
+  for (;;) {
+    if ((m = matchModel(s))) { if (model !== undefined) dup('model'); model = m.value; }
+    else if ((m = matchTimeout(s))) { if (timeout !== undefined) dup('timeout'); timeout = m.value; }
+    else break;
+    s = m.rest;
+  }
+  if ((m = matchCwd(s))) {
+    ({ value: cwd, rest: s } = m);
+    const next = /^\s*--(cwd|model|timeout)(?=[=\s]|$)/.exec(s);
+    if (next?.[1] === 'cwd') dup('cwd');
+    if (next) throw new Error('--cwd must be the last option; refused');
+  }
+  return { model, timeout, cwd, task: s };
 }

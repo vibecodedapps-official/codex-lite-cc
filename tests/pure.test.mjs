@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  buildArgv, readStream, decideProbe, validateRequestId, requestedLine, resumeLine, parseAskArgs, parseReviewArgs, PROBE_SCRIPT, windowsSandboxSetting,
+  buildArgv, readStream, decideProbe, validateRequestId, requestedLine, resumeLine, parseAskArgs, parseImplementArgs, parseReviewArgs, PROBE_SCRIPT, windowsSandboxSetting,
 } from '../plugins/codex-lite/scripts/codex.mjs';
 
 const ONE_LINER = 'try{require("fs").writeFileSync(process.argv[1],"x");process.exit(0)}catch(e){' +
@@ -67,6 +67,16 @@ test('buildArgv treats a bare resume (true) as malformed: the entry script must 
 test('do', () => {
   assert.deepEqual(buildArgv('do'), ['exec', '--json', '--ignore-user-config',
     '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '-']);
+});
+
+test('implement is the do argv, plus --model when given', () => {
+  assert.deepEqual(buildArgv('implement'), ['exec', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '-']);
+  assert.deepEqual(buildArgv('implement', { model: 'gpt-x' }), ['exec', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '--model', 'gpt-x', '-']);
+  assert.deepEqual(buildArgv('implement', { model: 'gpt-x', windowsSandbox: 'elevated' }), ['exec', '--json', '--ignore-user-config',
+    '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '-c', 'windows.sandbox="elevated"', '--model', 'gpt-x', '-']);
+  assert.throws(() => buildArgv('implement', { model: '-x' }), /--model "-x" is empty or starts with "-"; refused$/);
 });
 
 test('a Windows sandbox mode is passed on every sandboxed call', () => {
@@ -527,3 +537,51 @@ test('probe one-liner: 42 and the code on a denied write',
       assert.match(denied.stderr, /^(EACCES|EPERM)$/);
     } finally { chmodSync(dir, 0o700); rmSync(dir, { recursive: true, force: true }); }
   });
+
+const NONE = { model: undefined, timeout: undefined, cwd: undefined };
+
+test('implement arguments: no options leaves the whole text as the task', () => {
+  assert.deepEqual(parseImplementArgs('add a test\n'), { ...NONE, task: 'add a test\n' });
+});
+
+test('implement arguments: each option alone, with the task after it', () => {
+  assert.deepEqual(parseImplementArgs('--model gpt-x\ngo'), { ...NONE, model: 'gpt-x', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--model=gpt-x go'), { ...NONE, model: 'gpt-x', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--timeout 90\ngo'), { ...NONE, timeout: 90, task: 'go' });
+  assert.deepEqual(parseImplementArgs('--cwd /tmp/a\ngo'), { ...NONE, cwd: '/tmp/a', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--cwd=/tmp/a\r\ngo'), { ...NONE, cwd: '/tmp/a', task: 'go' });
+});
+
+test('implement arguments: --model and --timeout in either order, then --cwd last', () => {
+  assert.deepEqual(parseImplementArgs('--model m --timeout 5\n--cwd /tmp/a\ngo'), { model: 'm', timeout: 5, cwd: '/tmp/a', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--timeout 5 --model m\n\n--cwd /tmp/a\ngo'), { model: 'm', timeout: 5, cwd: '/tmp/a', task: 'go' });
+});
+
+test('implement arguments: each option given twice is refused', () => {
+  assert.throws(() => parseImplementArgs('--model a --model b\ngo'), /--model given more than once; refused$/);
+  assert.throws(() => parseImplementArgs('--timeout 1 --timeout 2\ngo'), /--timeout given more than once; refused$/);
+  assert.throws(() => parseImplementArgs('--cwd /tmp/a\n--cwd /tmp/b\ngo'), /--cwd given more than once; refused$/);
+});
+
+test('implement arguments: --model or --timeout after --cwd is refused', () => {
+  assert.throws(() => parseImplementArgs('--cwd /tmp/a\n--model m\ngo'), /--cwd must be the last option; refused$/);
+  assert.throws(() => parseImplementArgs('--cwd /tmp/a\n--timeout 5\ngo'), /--cwd must be the last option; refused$/);
+});
+
+test('implement arguments: a relative or empty --cwd is refused', () => {
+  assert.throws(() => parseImplementArgs('--cwd rel/dir\ngo'), /--cwd "rel\/dir" is empty or not an absolute path; refused$/);
+  assert.throws(() => parseImplementArgs('--cwd\ngo'), /--cwd "" is empty or not an absolute path; refused$/);
+  assert.throws(() => parseImplementArgs('--cwd=\ngo'), /--cwd "" is empty or not an absolute path; refused$/);
+});
+
+test('implement arguments: a --cwd with spaces or backslashes is kept verbatim', () => {
+  assert.deepEqual(parseImplementArgs('--cwd /tmp/a b\ngo'), { ...NONE, cwd: '/tmp/a b', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--cwd /tmp/x\\y\r\ngo'), { ...NONE, cwd: '/tmp/x\\y', task: 'go' });
+  assert.deepEqual(parseImplementArgs('--cwd=/tmp/a b \ngo'), { ...NONE, cwd: '/tmp/a b ', task: 'go' });
+});
+
+test('implement arguments: --resume is task text, and --cwd with no task leaves an empty task', () => {
+  assert.deepEqual(parseImplementArgs('--resume t-1\ngo'), { ...NONE, task: '--resume t-1\ngo' });
+  assert.deepEqual(parseImplementArgs('--model m\n--resume\ngo'), { ...NONE, model: 'm', task: '--resume\ngo' });
+  assert.deepEqual(parseImplementArgs('--cwd /tmp/a'), { ...NONE, cwd: '/tmp/a', task: '' });
+});
