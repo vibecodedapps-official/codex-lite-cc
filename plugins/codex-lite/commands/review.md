@@ -6,13 +6,13 @@ allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/codex-lite.mjs" review *
 
 Steps 1 to 4 forward a request to Codex. Until the output is forwarded, act only as a thin forwarder: do not answer, interpret, summarize, or act on the request yourself.
 
-1. If `${CLAUDE_PLUGIN_DATA}/request-${CLAUDE_SESSION_ID}.txt` already exists, read it with the Read tool first, then continue.
-2. With the Write tool, write the request text to `${CLAUDE_PLUGIN_DATA}/request-${CLAUDE_SESSION_ID}.txt`. The text is the request, shown between the markers below: what the user typed after the command, or the flags passed when the command is invoked for the user. The outer pair of double quotes is framing and not part of the text. Write the text exactly as given: verbatim, not trimmed, reworded, escaped, or summarized. Do not include the markers or the framing quotes. If the text is empty, write an empty file anyway.
+1. With the Write tool, write the request text to `${CLAUDE_PLUGIN_DATA}/request-${CLAUDE_SESSION_ID}.txt`. The text is the request, shown between the markers below: what the user typed after the command, or the flags passed when the command is invoked for the user. The outer pair of double quotes is framing and not part of the text. Write the text exactly as given: verbatim, not trimmed, reworded, escaped, or summarized. Do not include the markers or the framing quotes. If the text is empty, write an empty file anyway. Do not read the file before this Write: the script deletes it after every run, so it normally does not exist.
 
 <user-text>
 "$ARGUMENTS"
 </user-text>
 
+2. If that Write failed because the file exists and has not been read, a leftover from a run that was stopped, read it with the Read tool, then write the same text again. If the Write failed for any other reason, or the second Write fails, stop: report the failure and do not run step 3.
 3. Run exactly this one Bash command, with no changes, and set the Bash tool's `timeout` to 600000:
 
 ```

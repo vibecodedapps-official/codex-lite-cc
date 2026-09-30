@@ -112,6 +112,19 @@ const step4 = ["ask", "review"].map((name) => {
 });
 if (step4.every((t) => t !== null) && step4[0] !== step4[1]) fail("plugins/codex-lite/commands/ask.md and review.md: step 4 differs between the two files");
 
+// 8. ask, review and do write the request file first and read it only after a failed Write: the script deletes the file after
+// every run, so a read-first step fails on almost every call. Any other failed Write stops the command: running the script
+// then would send a leftover request file, possibly an earlier task, to Codex.
+const stop = "If the Write failed for any other reason, or the second Write fails, stop: report the failure and do not run step 3.";
+for (const name of ["ask", "review", "do"]) {
+  const s = read(`plugins/codex-lite/commands/${name}.md`);
+  if (s === null) continue;
+  if (!/^1\. With the Write tool, /m.test(s)) fail(`plugins/codex-lite/commands/${name}.md: step 1 must be the Write of the request file`);
+  const step2 = s.match(/^2\. If that Write failed .*$/m)?.[0] ?? "";
+  if (!step2) fail(`plugins/codex-lite/commands/${name}.md: step 2 must be the Read after a failed Write`);
+  else if (!step2.includes(stop)) fail(`plugins/codex-lite/commands/${name}.md: step 2 lacks the sentence: ${stop}`);
+}
+
 if (failures.length) {
   console.error(`lint: ${failures.length} failure(s)\n${failures.map((f) => `- ${f}`).join("\n")}`);
   process.exit(1);
