@@ -84,11 +84,16 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     Claude must invoke `/codex-lite:ask` with that question, again with no approvals. Then ask
     in plain words for `do`: Claude must not invoke it, because the `do` and `setup` command
     files set `disable-model-invocation: true`.
-12. **Deny, then recover, in one session.** Run `/codex-lite:ask` and deny the Bash prompt
-    (or, if item 9 found no Bash prompt, interrupt the turn after the Write), then run
-    `/codex-lite:ask` again in the same session. The second run must succeed: when the
-    Write fails on the leftover request file, the command file tells Claude to read it and
-    write again. Then leave a request file behind the same way, run `/codex-lite:do` with a
+12. **Deny, then recover.** Run `/codex-lite:ask` and deny the Bash prompt (or, if item 9
+    found no Bash prompt, interrupt the turn after the Write), then run `/codex-lite:ask`
+    again in the same session. The second run must succeed with no Read of the request file:
+    Claude wrote the leftover in this session, so Claude Code counts it as read and the Write
+    overwrites it. This does not reach step 2's read-and-rewrite path. To reach it, leave a
+    request file behind the same way, quit, resume that session with `claude --resume`, and
+    run `/codex-lite:ask` again: the first Write must fail on the unread leftover, Claude must
+    read it and write again, and the run must succeed. If the resumed session has a new
+    session id, it writes a different request file, so the path is not reached; record that.
+    Then leave a request file behind the same way, run `/codex-lite:do` with a
     different task, and deny the Write prompt: Claude must stop and report the failure without
     running the script, so the leftover task never reaches Codex.
 13. **A run past ten minutes.** Run a `do` or `ask` that takes longer than the ten-minute
