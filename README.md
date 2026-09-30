@@ -238,8 +238,9 @@ sessions from other agents; use that.
 
 The plugin adds one `UserPromptSubmit` hook. When a prompt you send mentions Codex, in any
 case, the hook adds a short routing note to Claude's context: use `ask` for questions and plan
-critiques, `review` only for diffs, put a model choice first as `--model <name>`, put `--resume`
-first, on its own line, for a follow-up in the same Codex thread, send file changes to
+critiques, `review` only for diffs, put options before the question in any order (a model
+choice as `--model <name>`, and for a follow-up in the same Codex thread `--resume <thread id>`
+or a bare `--resume` followed by a line break or another option), send file changes to
 `/codex-lite:do`, and do not run Codex directly. A prompt that starts with a slash command
 (a slash and a command name, then a space or the end) gets no note, whichever plugin the
 command belongs to, because a typed command already routes itself; a prompt that starts with

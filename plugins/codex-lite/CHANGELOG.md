@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- The `ask`, `review` and `do` command files start with the Write of the request file and
+  read it only when that Write fails on a leftover file. Any other failed Write, or a failed
+  second Write, stops the command before the script runs, so a leftover request, possibly an
+  earlier task, is never sent to Codex. Before, step 1 told Claude to read
+  the file first if it existed, which Claude cannot tell without a tool call, and the script
+  deletes the file after every run, so almost every call began with a failed Read.
+- The `UserPromptSubmit` hook's routing note says options go before the question in any
+  order, and that `--resume` takes a thread id or, bare, is followed by a line break or
+  another option. Before, it said to put `--model` first and also to put `--resume` first,
+  on its own line, which contradicted itself and read as stricter than the parser: a
+  `--resume <thread id>` on the same line as the question was always accepted.
+
 ## 0.7.1 - 2026-09-29
 
 - The `ask` and `review` command files now say what Claude does after forwarding Codex's

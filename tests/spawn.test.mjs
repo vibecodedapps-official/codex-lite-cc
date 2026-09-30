@@ -36,8 +36,9 @@ test('ask with a model and no question is refused before Codex starts', spawning
 }));
 
 const NOTE = 'Use codex-lite for Codex requests: ask for questions, plan critiques, and second opinions; review only for working-tree or ' +
-  'base-ref diffs. Put an explicit model choice first as --model <name>. For a follow-up in the same Codex thread, put --resume first, on ' +
-  'its own line, then only the new question. For file changes, direct the user to /codex-lite:do <task>; for ' +
+  'base-ref diffs. Put options before the question, in any order: an explicit model choice as --model <name>, and for a follow-up in ' +
+  'the same Codex thread, --resume <thread id>, or a bare --resume followed by a line break or another option; the follow-up then needs ' +
+  'only the new question. For file changes, direct the user to /codex-lite:do <task>; for ' +
   'setup checks, /codex-lite:setup. Do not invoke Codex directly.\n';
 const hook = (input) => {
   const r = spawnSync(process.execPath, [SCRIPT, 'hook'], { input, encoding: 'utf8', timeout: 10_000 });
