@@ -38,8 +38,8 @@ test('ask with a model and no question is refused before Codex starts', spawning
 const NOTE = 'Use codex-lite for Codex requests: ask for questions, plan critiques, and second opinions; review only for working-tree or ' +
   'base-ref diffs. Put options before the question, in any order: an explicit model choice as --model <name>, and for a follow-up in ' +
   'the same Codex thread, --resume <thread id>, or a bare --resume followed by a line break or another option; the follow-up then needs ' +
-  'only the new question. For file changes, direct the user to /codex-lite:do <task>; for ' +
-  'setup checks, /codex-lite:setup. Do not invoke Codex directly.\n';
+  'only the new question. A skill that delegates implementation to Codex uses implement; for a plain request to change files, direct the user to ' +
+  '/codex-lite:do <task>; for setup checks, /codex-lite:setup. Do not invoke Codex directly.\n';
 const hook = (input) => {
   const r = spawnSync(process.execPath, [SCRIPT, 'hook'], { input, encoding: 'utf8', timeout: 10_000 });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
@@ -210,6 +210,31 @@ test('ask --timeout 1 with no environment override ends the turn after 1 s, and 
   assert.equal(await dead(pids(s)[0]), true);
 }));
 
+test('implement --timeout 1 ends the turn after 1 s as status: timeout, and the flag does not reach Codex', spawning, withScratch(async (s) => {
+  const r = run(s, 'implement', { request: '--timeout 1\nslow task', env: { FAKE_CODEX: 'hang' } });
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s).at(-1), ['exec', '--json', '--ignore-user-config', '-c', 'approval_policy="never"', '-c', 'sandbox_mode="workspace-write"', '-']);
+  assert.match(r.stdout, /\n\ncodex-lite: the run failed: timed out after 1 s; its process group was stopped\n/);
+  assert.match(r.stdout, /\nstatus: timeout\n$/);
+  assert.equal(await dead(pids(s).at(-1)), true);
+}));
+
+test('implement with --cwd outside a repository is refused with Codex never started', spawning, withScratch((s) => {
+  const r = run(s, 'implement', { request: `--cwd ${s.plain}\ngo` });
+  assert.match(r.stdout, /^codex-lite: not inside a git repository, so nothing was run \(fatal: not a git repository/);
+  assert.match(r.stdout, /\nstatus: refused\n$/);
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(s), []);
+}));
+
+test('implement with a relative --cwd, a repeated option or an empty task is refused before Codex starts', spawning, withScratch((s) => {
+  const refused = (request) => run(s, 'implement', { request }).stdout;
+  assert.equal(refused('--cwd rel\ngo'), 'codex-lite: implement arguments refused: --cwd "rel" is empty or not an absolute path; refused\nstatus: refused\n');
+  assert.equal(refused('--timeout 5 --timeout 6\ngo'), 'codex-lite: implement arguments refused: --timeout given more than once; refused\nstatus: refused\n');
+  assert.equal(refused(`--cwd ${s.repo}\n`), 'codex-lite: the request is empty; nothing was sent to Codex\nstatus: refused\n');
+  assert.deepEqual(calls(s), []);
+}));
+
 test('review --timeout 1 with no environment override ends the turn after 1 s, and the flag does not reach Codex', spawning, withScratch(async (s) => {
   writeFileSync(join(s.repo, 'tracked.txt'), 'two\n');
   const r = run(s, 'review', { request: '--timeout 1', env: { FAKE_CODEX: 'hang' } });
@@ -302,7 +327,7 @@ test('setup, the hook and an unknown command print no status line', spawning, wi
   assert.doesNotMatch(setup.stdout, /status:/);
   assert.equal(hook(JSON.stringify({ prompt: 'ask codex' })).stdout, NOTE);
   const unknown = cli(s, ['nope', s.data, ID]);
-  assert.equal(unknown.stdout, 'codex-lite: unknown command "nope"; expected review, ask, do or setup\n');
+  assert.equal(unknown.stdout, 'codex-lite: unknown command "nope"; expected review, ask, do, implement or setup\n');
   assert.equal(unknown.status, 1);
 }));
 

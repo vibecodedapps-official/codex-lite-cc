@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.8.0 - 2026-09-30
+
+- New command `/codex-lite:implement`, which Claude may invoke. It runs the same
+  `workspace-write` turn as `do`, after the same sandbox probe, and prints the same `requested:`,
+  `cwd:` and `sandbox:` lines, `HEAD` and tree-state footer, thread line, `Resume:` line and
+  `status:` line. Its description says Claude may invoke it only when a skill the user invoked
+  delegates a change to Codex as one of its steps; a request typed in plain words, even one
+  that names Codex, still goes to `/codex-lite:do`. It takes three leading options: `--model <name>`, `--timeout <seconds>`
+  (1 to 3600) and `--cwd <absolute path>`. `--model` and `--timeout` go first in any order,
+  each at most once. `--cwd`, as `--cwd <path>` or `--cwd=<path>`, is last: its value is the
+  rest of its line, verbatim, so a path with spaces or Windows backslashes is carried intact,
+  and the task starts on the next line. A `--model`, `--timeout` or second `--cwd` directly
+  after the `--cwd` line is refused. The path must be absolute and an existing directory inside
+  a git repository, or the command refuses before Codex runs; Codex runs there and its write
+  sandbox is bounded to it, while the tree footer stays repository-wide, as for `do`. This
+  serves runs whose checkout is not the session's directory, such as a worktree. It also
+  means the invoking skill chooses the repository Codex writes in: any git checkout on disk
+  is accepted, and the README says so. Trailing spaces and tabs on the `--cwd` line are
+  dropped. There is no
+  `--resume`: every call starts a new thread, whose id is saved as for `do`, so `ask --resume`
+  can question it read-only. A `--resume` in the text is task text, and an empty task is
+  refused. `do` is unchanged: hidden from Claude, typed by the user, no options.
+- This weakens one guarantee: writes were gated on a command only you could type, and a skill
+  can now delegate a change through `implement`. In default permission mode the Skill call
+  still prompts. The README states the tradeoff.
+- The `UserPromptSubmit` hook's routing note gains one clause: a skill that delegates
+  implementation to Codex uses `implement`, and a plain request to change files still goes to
+  `/codex-lite:do`.
+- The `ask` and `review` descriptions now say a skill may delegate a change through
+  `implement`. Before, they said Codex edits files only through `/codex-lite:do`, which the
+  user must type.
+- `npm run lint` applies the command-file checks to `implement.md`: no
+  `disable-model-invocation`, the Write first, the Read only after a failed Write, and a step 4
+  identical to `ask` and `review`.
+
 ## 0.7.2 - 2026-09-30
 
 - The `ask`, `review` and `do` command files start with the Write of the request file and

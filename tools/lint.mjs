@@ -61,8 +61,8 @@ if (readme !== null && plugin && market) {
   }
 }
 
-// 4. Only do and setup are hidden from the model; ask and review must stay visible so a plain-words request can reach them.
-const hidden = { ask: false, review: false, do: true, setup: true };
+// 4. Only do and setup are hidden from the model; ask, review and implement must stay visible so a plain-words request, or a skill's delegation, can reach them.
+const hidden = { ask: false, review: false, implement: false, do: true, setup: true };
 for (const [name, want] of Object.entries(hidden)) {
   const s = read(`plugins/codex-lite/commands/${name}.md`);
   if (s === null) continue;
@@ -97,10 +97,10 @@ if (stems.length) {
   }
 }
 
-// 7. ask and review say, in step 4, when the output is the whole reply and when Claude continues, and their step 4 stays identical.
+// 7. ask, review and implement say, in step 4, when the output is the whole reply and when Claude continues, and their step 4 stays identical.
 const endTurn = "that output is your whole reply: add nothing after it, run no other command, and end your turn.";
 const resume = "If you invoked this command as one step of a larger request, such as a plan to converge or findings to address, continue with that request's remaining steps after the output, using Codex's answer as input.";
-const step4 = ["ask", "review"].map((name) => {
+const step4 = ["ask", "review", "implement"].map((name) => {
   const s = read(`plugins/codex-lite/commands/${name}.md`);
   if (s === null) return null;
   // Step 4 runs from its "4. " line to the next blank line, joined, so a wrapped step still matches.
@@ -110,13 +110,13 @@ const step4 = ["ask", "review"].map((name) => {
   }
   return text;
 });
-if (step4.every((t) => t !== null) && step4[0] !== step4[1]) fail("plugins/codex-lite/commands/ask.md and review.md: step 4 differs between the two files");
+if (step4.every((t) => t !== null) && !step4.every((t) => t === step4[0])) fail("plugins/codex-lite/commands/ask.md, review.md and implement.md: step 4 differs between the files");
 
-// 8. ask, review and do write the request file first and read it only after a failed Write: the script deletes the file after
+// 8. ask, review, implement and do write the request file first and read it only after a failed Write: the script deletes the file after
 // every run, so a read-first step fails on almost every call. Any other failed Write stops the command: running the script
 // then would send a leftover request file, possibly an earlier task, to Codex.
 const stop = "If the Write failed for any other reason, or the second Write fails, stop: report the failure and do not run step 3.";
-for (const name of ["ask", "review", "do"]) {
+for (const name of ["ask", "review", "implement", "do"]) {
   const s = read(`plugins/codex-lite/commands/${name}.md`);
   if (s === null) continue;
   if (!/^1\. With the Write tool, /m.test(s)) fail(`plugins/codex-lite/commands/${name}.md: step 1 must be the Write of the request file`);

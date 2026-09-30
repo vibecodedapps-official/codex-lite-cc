@@ -6,7 +6,9 @@ covers macOS, Linux and Windows, a version bump and a changelog entry. Run items
 and 18 when the installed Codex version differs from the one the test suite's fake Codex
 reproduces, or when a change alters how a request reaches Codex, the sandbox flags or the
 footer, and add a row to the record at the end when you do. Items 17 and 18 sit at the end of
-the list, under the later heading, only so the earlier item numbers stay the same.
+the list, under the later heading, only so the earlier item numbers stay the same. Item 19
+needs a live session and is run once, then again when `implement`, its options or Claude Code's
+Skill handling change.
 
 Use scratch state throughout: a scratch `CODEX_HOME` holding a copy of your Codex config, a
 scratch git repository, and a scratch `CLAUDE_CONFIG_DIR` seeded with a copy of your real
@@ -153,6 +155,24 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
     verbatim in the forwarded output and in a background-task notification. The cut-off case
     from item 14, a call ended by the Bash tool's timeout, must show no `status:` line.
 
+19. **`implement` from a skill.** In a scratch git repository and a second checkout of it (a
+    `git worktree add` directory whose path contains a space), install a scratch skill whose
+    steps delegate a small change to Codex, for example adding a function and a test to a file.
+    In a session with the plugin installed, invoke the skill. Claude must call `implement`
+    through the Skill tool, not `do` and not the Codex CLI, with `--model <name>` and
+    `--timeout <seconds>` first, then `--cwd <absolute path of the worktree>` alone on its
+    line, then the task on the next line; confirm in the transcript that the request file holds
+    exactly that text. Record the prompt Claude Code shows for the Skill call in default
+    permission mode, and whether any appears in auto mode. The result must show a `requested:`
+    line with `--model <name>` and no `--timeout` or `--cwd`, a `cwd:` line naming the
+    worktree, `sandbox_mode="workspace-write"`, the `HEAD` footer for the repository, a thread
+    line and `status: ok`, and the file change must be in the worktree and not in the session's
+    directory. Then confirm a relative `--cwd`, a path that is not a git repository, and a
+    second `--timeout` after the `--cwd` line are each refused before Codex runs with
+    `status: refused`, and that `ask --resume <thread id>` with the thread from the run answers
+    read-only. In the same session, outside the skill, confirm a plain request to change a file
+    still goes to `/codex-lite:do` as a typed command, not `implement`.
+
 ## Record
 
 | Date | Version | Platform | Codex version | Result |
@@ -168,3 +188,4 @@ These were not run when 0.1.0 was built, because they need an interactive sessio
 | 2026-09-26 | 0.5.0 | macOS 27.0, Claude Code 2.1.280, interactive session with `--plugin-dir` on the PR branch, from a scratch repository under `/tmp` | codex-cli 0.157.1 | Item 13 passed for `do`: the call moved to the background at the 600 s timeout ("Command did not complete within its 600s timeout and was moved to the background"), was not killed, finished with exit 0 and sent its notification. The `requested:` line, `cwd: /private/tmp/cl-accept`, the `sandbox:` line, the answer, `HEAD 65d2faa before, 65d2faa after` with `?? done.txt`, the thread line and the resume line all arrived intact, and the session's transcript held `"timeout":600000`. Item 14: a first attempt with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` and `BASH_MAX_TIMEOUT_MS=30000` did not reach the kill path: the call still carried `timeout: 600000`, and a `do` running `sleep 90` finished and wrote its file. Rerun with a scratch copy of the plugin whose `do.md` sets 30000, it passed: the call ended with "Command timed out after 30s", exit 143; `pgrep` for the script, `codex exec` and the `sleep`, run after the session ended, found nothing; and `done.txt` did not exist two minutes later. With no output to return, Claude described the timeout in its own words instead of returning output verbatim. |
 | 2026-09-26 | 0.6.0 | macOS 27.0, Node 26.4.0; the working tree's entry script run directly with `node` against a scratch data directory and a scratch repository under `/tmp` (no Claude Code session) | codex-cli 0.157.1 | Item 17 in part, through the entry script. A bare `--resume` with nothing saved was refused before Codex ran ("no earlier Codex thread is saved for this Claude session"), exit 1. A first `ask` ("Say only the word zebra.") answered `zebra` and saved its thread id to `thread-<session id>.txt`. A bare `--resume` on its own line, then `--resume <thread id>` on the same line as the question, each ran `codex exec resume <id> --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="read-only" -`, and each answered `zebra` when asked what it said before, so the earlier turn was remembered. An unknown id failed with Codex's own "no rollout found for thread id ..." on stderr, exit 1, and the saved id was unchanged. The Claude side of item 17, through `/codex-lite:ask` in a session, not run. |
 | 2026-09-28 | 0.7.0 | macOS 27.0, Node 26.4.0; the branch's entry script run directly with `node` against a scratch data directory and a scratch repository under `/tmp` (no Claude Code session) | codex-cli 0.157.1 | `npm test` (174 pass, 10 skipped) and `npm run lint` (runtime 659/700 lines) pass. Item 2 in part: with `HEAD` equal to the base and one staged new file, `review --base main` ran instead of refusing, reported the staged file at `sub.mjs:1-1`, and ended `status: ok`; the diverged-base scope check was not run. Item 18 in part: `ask --timeout 1` ended with `timed out after 1 s; its process group was stopped` and `status: timeout`; `review --timeout 5 --timeout 6` was refused before Codex ran and ended `status: refused`; the longer-timeout termination case and the Claude Code side (typed and model-invoked flags, the resumed `ask`, the forwarded and background-task `status:` line, the cut-off case) were not run. Item 16 in part: the hook run directly printed nothing for `/ccl:run --no-codex` and printed the note for `ask codex please`. Items 1, 3 to 8 and 17 not rerun. |
+| 2026-09-30 | 0.8.0 | macOS 27.0, Node 26.4.0; the branch's entry script run directly with `node` against a scratch data directory and a scratch repository under `/tmp` (no Claude Code session) | codex-cli 0.159.0 | `npm test` (193 pass, 10 skipped) and `npm run lint` (runtime 693/700 lines) pass. Item 19 in part, through the entry script: a request of `--model gpt-6-luna --timeout 120 --cwd <repo>` on the first line and a one-line task on the next ran `codex exec --json --ignore-user-config -c approval_policy="never" -c sandbox_mode="workspace-write" --model gpt-6-luna -`, with `cwd:` naming the repository, the `sandbox:` line, `HEAD f280099 before, f280099 after`, ` M README.md` in the tree state, a thread line and `status: ok`; the file held the appended line, the request file was deleted and the thread id was saved. The `--cwd` here was the shell's own directory, not a worktree; the refusal cases, the resumed `ask`, and the Claude Code side (the Skill call from a skill, the permission prompt in default and auto mode, and the plain-words routing to `do`) were not run. |
