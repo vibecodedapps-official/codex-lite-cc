@@ -327,6 +327,24 @@ test('review arguments: an unknown option or a bare word is refused', () => {
   assert.throws(() => parseReviewArgs('main'), /'main'/);
 });
 
+test('review arguments: --cwd is the last line, as --cwd <path> or --cwd=<path>', () => {
+  assert.deepEqual(parseReviewArgs('--base main\n--model x\n--cwd /tmp/a b\\c  \t\n\n'), { base: 'main', model: 'x', timeout: undefined, cwd: '/tmp/a b\\c' });
+  assert.deepEqual(parseReviewArgs('--cwd=/tmp/a'), { base: undefined, model: undefined, timeout: undefined, cwd: '/tmp/a' });
+  assert.deepEqual(parseReviewArgs('--timeout 5\r\n--cwd /tmp/a\r\n'), { base: undefined, model: undefined, timeout: 5, cwd: '/tmp/a' });
+});
+
+test('review arguments: a relative or empty --cwd is refused', () => {
+  assert.throws(() => parseReviewArgs('--cwd rel/dir'), /--cwd "rel\/dir" is empty or not an absolute path; refused$/);
+  assert.throws(() => parseReviewArgs('--base main\n--cwd'), /--cwd "" is empty or not an absolute path; refused$/);
+});
+
+test('review arguments: a --cwd that is not the last line, or is given twice, is refused', () => {
+  for (const text of ['--cwd /tmp/a\n--base main', '--cwd /tmp/a\n--cwd /tmp/b', '--cwd=/tmp/a\n--timeout 5\n--cwd=/tmp/b', '  --cwd /tmp/a\n--model x\n',
+    '--base main --cwd /tmp/a', '--model x --cwd=/tmp/a --base main', '--cwd\vC:\\a']) {
+    assert.throws(() => parseReviewArgs(text), /^Error: --cwd must be the last line; refused$/, text);
+  }
+});
+
 test('ask arguments: a plain question is the whole text', () => {
   assert.deepEqual(parseAskArgs('what does math.mjs export?\n'), { model: undefined, resume: undefined, timeout: undefined, question: 'what does math.mjs export?\n' });
 });

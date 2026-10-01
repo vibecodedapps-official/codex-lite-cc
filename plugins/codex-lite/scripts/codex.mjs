@@ -209,8 +209,12 @@ const seconds = (v) => {
 };
 
 // Splitting on whitespace is safe only because review takes no free text. Adding free text needs a different format.
+// --cwd, as for implement, is the one line option: the last non-empty line, and nowhere else.
 export function parseReviewArgs(text) {
-  const args = text.trim() ? text.trim().split(/\s+/) : [];
+  const lines = text.trimEnd().split('\n'), cwdLine = /^\s*--cwd(?=[= \t\r]|$)/;
+  const cwd = cwdLine.test(lines.at(-1)) ? matchCwd(lines.pop()).value : undefined;
+  if (lines.some((l) => /(?:^|\s)--cwd(?=[=\s]|$)/.test(l))) throw new Error('--cwd must be the last line; refused');
+  const rest = lines.join('\n').trim(), args = rest ? rest.split(/\s+/) : [];
   // parseArgs keeps the last of two values silently; ask refuses a second of any option, so review does too.
   for (const name of ['base', 'model', 'timeout']) {
     if (args.filter((a) => a === `--${name}` || a.startsWith(`--${name}=`)).length > 1) throw new Error(`--${name} given more than once; refused`);
@@ -218,7 +222,7 @@ export function parseReviewArgs(text) {
   const { values } = parseArgs({ args, options: { base: { type: 'string' }, model: { type: 'string' }, timeout: { type: 'string' } },
     strict: true, allowPositionals: false });
   for (const name of ['base', 'model']) if (values[name] !== undefined) plain(`--${name}`, values[name]);
-  return { base: values.base, model: values.model, timeout: values.timeout === undefined ? undefined : seconds(values.timeout) };
+  return { base: values.base, model: values.model, timeout: values.timeout === undefined ? undefined : seconds(values.timeout), ...(cwd === undefined ? {} : { cwd }) };
 }
 
 // Only leading --model, --resume and --timeout are options, in any order, each at most once: ask's text is free, so either
