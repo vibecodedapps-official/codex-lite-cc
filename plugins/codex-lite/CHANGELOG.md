@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0 - 2026-09-30
+
+- `/codex-lite:review` takes `--cwd <absolute path>`, as `--cwd <path>` or `--cwd=<path>`,
+  on its own line as the last line of the request, with the value rule of `implement`: the
+  rest of the line, verbatim, trailing spaces and tabs dropped. The path must be absolute and
+  an existing directory inside a git repository, or the command refuses before Codex runs.
+  Codex runs read-only from the top of that repository and the `cwd:` line shows it. This
+  serves reviews of a checkout that is not the session's directory, such as a worktree.
+  A `--cwd` anywhere but the last line, or given twice, is refused. Requests without `--cwd`
+  parse as before.
+
 ## 0.8.0 - 2026-09-30
 
 - New command `/codex-lite:implement`, which Claude may invoke. It runs the same

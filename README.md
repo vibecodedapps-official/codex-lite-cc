@@ -77,6 +77,10 @@ permission mode Claude Code still asks before the Skill call; in auto mode, as o
 Codex starts, when the base ref does not exist, when it has no merge base with `HEAD`, or when
 there is nothing to review. `review` takes `--base <ref>`, `--model <name>` and
 `--timeout <seconds>`, each at most once; a repeated flag is refused before Codex starts.
+It also takes `--cwd <absolute path>` or `--cwd=<path>` on its own line, the last line of the
+request, to review a repository other than the shell's, such as a worktree: the value is the
+rest of its line, verbatim, and must be an existing directory inside a git repository. A
+`--cwd` anywhere else is refused.
 With `--base`, as in Codex, what is reviewed is the
 net difference from the merge base of the base and `HEAD` to the working tree: commits, staged
 and unstaged changes together, tracked files only. An untracked file is not compared, so
@@ -138,7 +142,7 @@ line was cut off, by the Bash tool's timeout or a kill, and is incomplete. The p
 tell model, login or sandbox failures apart: Codex reports them as prose, which the
 `codex-lite: the run failed:` line carries. `setup` prints no status line.
 
-`ask` and `review` run from the top of the repository, whatever directory the shell is in; `do` and `implement` run from the shell's directory, or from `--cwd` for `implement`, which bounds where they can write. `ask` and
+`ask` and `review` run from the top of the repository, whatever directory the shell is in; `do` and `implement` run from the shell's directory, or from `--cwd` for `implement`, which bounds where they can write; `review` runs from the top of the repository holding its `--cwd`, if given. `ask` and
 `review` also print a line saying the sandbox has no network. `do` and `implement` also print `HEAD` before
 and after the run and the working tree state after it
 (`git status --porcelain --untracked-files=all --ignored`, cut at fifty lines). It states what

@@ -187,6 +187,31 @@ test('review --base from a subdirectory compares the whole repository: refused c
   assert.deepEqual(cwds(s), [s.repo]);
 }));
 
+test('review --cwd reviews that repository from its top, whatever directory the shell is in, with --cwd=<path> accepted too', spawning, withScratch((s) => {
+  const sub = siblings(s);
+  for (const line of [`--cwd ${sub}`, `--cwd=${sub}`]) {
+    const r = run(s, 'review', { request: `--model m\n${line}\n`, cwd: s.plain });
+    assert.equal(r.status, 0, r.stdout);
+    assert.equal(r.stdout.split('\n')[1], `cwd: ${s.repo}`);
+  }
+  assert.deepEqual(calls(s), [[...REVIEW, '--uncommitted', '--model', 'm'], [...REVIEW, '--uncommitted', '--model', 'm']]);
+  assert.deepEqual(cwds(s), [s.repo, s.repo]);
+}));
+
+test('review --cwd that is relative, not in a git repository, not last or given twice is refused with Codex never started', spawning, withScratch((s) => {
+  const last = /^codex-lite: review arguments refused: --cwd must be the last line; refused\n/;
+  const cases = [['--cwd rel/dir', /^codex-lite: review arguments refused: --cwd "rel\/dir" is empty or not an absolute path; refused\n/],
+    [`--cwd ${s.plain}`, /^codex-lite: not inside a git repository, so nothing was run \(/],
+    [`--cwd ${s.repo}\n--base main`, last],
+    [`--cwd ${s.repo}\n--cwd ${s.repo}`, last]];
+  for (const [request, message] of cases) {
+    const r = run(s, 'review', { request });
+    assert.match(r.stdout, message, request);
+    assert.match(r.stdout, /\nstatus: refused\n$/, request);
+  }
+  assert.deepEqual(calls(s), []);
+}));
+
 test('ask from a subdirectory runs from the top of the repository', spawning, withScratch((s) => {
   const r = run(s, 'ask', { request: 'q', cwd: siblings(s) });
   assert.equal(r.status, 0, r.stdout);
